@@ -6,7 +6,7 @@
 # `make e2e`, atau `make smoke`, dan sebaliknya.
 #
 # Runner GitHub, bukan self-hosted: kode dari PR tidak boleh mendarat di mesin
-# yang dapat menjangkau OpenBao (itu tugas release.yml saja).
+# milik sendiri.
 
 name: CI
 
@@ -135,14 +135,14 @@ jobs:
     env:
       VERSION: 0.0.0-ci
       TRIVY_VERSION: "0.74.0"
-      # sha256 trivy_<versi>_Linux-64bit.tar.gz, sama dengan release.yml.
+      # sha256 trivy_<versi>_Linux-64bit.tar.gz, sama dengan pipeline rilis GONSU.
       # Dipatok di sini, bukan dibaca dari checksums.txt rilis yang sama: pihak
       # yang dapat mengganti arsipnya dapat mengganti checksum-nya juga.
       TRIVY_SHA256: "2ae6fe3ee734b7fdf11335663e18c75ea12dccc76062f09f164a3b0f8be4371a"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      # Dockerfile yang sama persis dengan release.yml, diuji di bawah
+      # Dockerfile yang sama persis dengan yang dibangun saat rilis, diuji di bawah
       # batasan chart GONSU (scripts/smoke.sh).
       - name: make smoke
         run: make smoke VERSION="$VERSION"
