@@ -11,7 +11,7 @@ const tinyPNG = Buffer.from(
 )
 
 test("administrator mengisi profil bisnis: wilayah dipilih, kode pos terisi sendiri", async ({ page }) => {
-  const name = `Toko Uji ${Date.now()}`
+  const name = `Usaha Uji ${Date.now()}`
   await signIn(page, "administrator", "/settings/business/")
   await expect(page.getByRole("heading", { name: "Profil bisnis", exact: true })).toBeVisible()
 

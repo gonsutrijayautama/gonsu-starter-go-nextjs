@@ -67,7 +67,7 @@ jobs:
       # meng-escape-nya.
       - name: gonsu new
         working-directory: ${{ runner.temp }}
-        run: gonsu new uji-kit --name 'Toko "Uji"' --kit-source "$GITHUB_WORKSPACE" -n --git=false --install=false
+        run: gonsu new uji-kit --name 'Usaha "Uji"' --kit-source "$GITHUB_WORKSPACE" -n --git=false --install=false
 
       - name: Tidak ada sisa identitas contoh
         working-directory: ${{ runner.temp }}/uji-kit

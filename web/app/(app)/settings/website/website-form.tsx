@@ -191,7 +191,7 @@ export function WebsiteForm({ settings, onChanged }: { settings: WebsiteSettings
           <form.Field name="tagline">
             {(field) => (
               <FormField field={field} label="Tagline" description="Kalimat besar di bagian atas halaman." serverError={serverErrors.tagline}>
-                <TextInput field={field} placeholder="Misalnya: Pakaian rapi untuk setiap hari" />
+                <TextInput field={field} placeholder="Misalnya: Melayani sepenuh hati, setiap hari" />
               </FormField>
             )}
           </form.Field>
@@ -213,7 +213,7 @@ export function WebsiteForm({ settings, onChanged }: { settings: WebsiteSettings
             slot="about"
             noun="foto"
             settings={settings}
-            hint="Foto kantor, toko, atau tim, di bagian Tentang kami. PNG, JPEG, atau WebP, maksimal 2 MB."
+            hint="Foto tempat usaha atau tim Anda, di bagian Tentang kami. PNG, JPEG, atau WebP, maksimal 2 MB."
             removeDescription="Foto hilang dari bagian Tentang kami di halaman depan."
             onChanged={onChanged}
           />

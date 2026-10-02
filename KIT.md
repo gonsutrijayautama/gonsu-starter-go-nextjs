@@ -46,7 +46,7 @@ ia menjadi identitas produk.
   `products/produk-contoh-web`.
 - **Jangan memakai nilai contoh untuk hal lain.** Kalimat seperti "lihat
   produk-contoh di bawah" akan berubah menjadi kode produk orang. Untuk
-  contoh di dokumen, pakai nama lain (`invoices`, `toko-baju`).
+  contoh di dokumen, pakai nama lain (`invoices`, `produk-lain`).
 - **Nama tampilan hanya di Markdown dan di dalam string TypeScript, JSON,
   atau Go.** Di berkas `.ts`, `.tsx`, `.js`, `.mjs`, `.json`, dan `.go`
   `gonsu new` menuliskannya ter-escape; di berkas lain apa adanya. Jangan
@@ -84,7 +84,7 @@ yang dibuat siapa pun sudah membawanya.
   Selisih commit itu dengan `main` adalah catatan naik versi bagi produk yang
   sudah berjalan: `git diff <commit> main`.
 - **Versi kit adalah tag berawalan `kit-`**: `kit-v0.1.0`. Pasang saat ada
-  titik yang layak dirujuk; `gonsu new toko --version 0.1.0` mengambil keadaan
+  titik yang layak dirujuk; `gonsu new nama-produk --version 0.1.0` mengambil keadaan
   pada tag itu. JANGAN memakai tag `v*` di repository ini — tag `v*` memicu
   `release.yml`, pipeline rilis produk. Pemakai cukup menulis nomornya; gonsu
   yang menambahkan awalan `kit-v`.

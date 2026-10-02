@@ -50,7 +50,7 @@ func logoPNG(t *testing.T) string {
 	return buf.String()
 }
 
-const profileBody = `{"display_name": "Toko Baju Sejahtera", "tax_id": "01.234.567.8-901.000",
+const profileBody = `{"display_name": "Maju Bersama", "tax_id": "01.234.567.8-901.000",
 	"address": "Jl. Pasteur No. 10", "region_code": "32.73.07.1001"}`
 
 // Modul standar dari library dipasang dengan penjagaan yang sama seperti
@@ -76,7 +76,7 @@ func TestBusinessProfileOverHTTP(t *testing.T) {
 
 	resp = do(t, app, call{method: http.MethodPut, path: "/v1/business-profile", body: profileBody, cookie: admin})
 	p := decodeProfile(t, resp)
-	if resp.StatusCode != http.StatusOK || p.DisplayName != "Toko Baju Sejahtera" {
+	if resp.StatusCode != http.StatusOK || p.DisplayName != "Maju Bersama" {
 		t.Fatalf("PUT oleh administrator = %d, %+v", resp.StatusCode, p)
 	}
 	// NPWP dinormalkan, kode pos dan nama wilayah diturunkan dari kodenya.
@@ -86,7 +86,7 @@ func TestBusinessProfileOverHTTP(t *testing.T) {
 	}
 
 	// Staf melihat yang disimpan administrator.
-	if p := decodeProfile(t, do(t, app, call{method: http.MethodGet, path: "/v1/business-profile", cookie: staff})); p.DisplayName != "Toko Baju Sejahtera" {
+	if p := decodeProfile(t, do(t, app, call{method: http.MethodGet, path: "/v1/business-profile", cookie: staff})); p.DisplayName != "Maju Bersama" {
 		t.Errorf("GET oleh staf = %+v", p)
 	}
 }
@@ -180,7 +180,7 @@ func TestBusinessProfileIsTenantScoped(t *testing.T) {
 	if resp := do(t, app, call{method: http.MethodPut, path: "/v1/business-profile", body: `{"display_name": "Bisnis B"}`, cookie: cb}); resp.StatusCode != http.StatusOK {
 		t.Fatalf("menyimpan profil B = %d", resp.StatusCode)
 	}
-	if p := decodeProfile(t, do(t, app, call{method: http.MethodGet, path: "/v1/business-profile", cookie: ca})); p.DisplayName != "Toko Baju Sejahtera" {
+	if p := decodeProfile(t, do(t, app, call{method: http.MethodGet, path: "/v1/business-profile", cookie: ca})); p.DisplayName != "Maju Bersama" {
 		t.Errorf("profil A berubah oleh pemasangan B: %+v", p)
 	}
 }
@@ -216,8 +216,8 @@ func TestRegionsOverHTTP(t *testing.T) {
 	}
 }
 
-const websiteBody = `{"mode": "site", "tagline": "Pakaian rapi untuk setiap hari",
-	"services": [{"title": "Jahit ukuran", "description": "Dijahit sesuai ukuran badan.", "icon": "wrench"}],
+const websiteBody = `{"mode": "site", "tagline": "Melayani sepenuh hati, setiap hari",
+	"services": [{"title": "Konsultasi", "description": "Bicarakan kebutuhan Anda dengan tim kami.", "icon": "headset"}],
 	"channels": {"whatsapp": "0812-3456-7890"}, "version": 0}`
 
 type websiteResponse struct {
@@ -295,7 +295,7 @@ func TestBusinessProfileRejectsStaleVersion(t *testing.T) {
 	if resp.StatusCode != http.StatusConflict || errorCode(t, resp) != apperr.CodeConcurrentModification {
 		t.Errorf("simpan kedua dengan version 0 = %d, ingin 409 CONCURRENT_MODIFICATION", resp.StatusCode)
 	}
-	next := `{"display_name": "Toko Baju", "version": 1}`
+	next := `{"display_name": "Maju Bersama Abadi", "version": 1}`
 	if resp := do(t, app, call{method: http.MethodPut, path: "/v1/business-profile", body: next, cookie: admin}); resp.StatusCode != http.StatusOK {
 		t.Errorf("simpan dengan version terbaru = %d", resp.StatusCode)
 	}
@@ -340,8 +340,8 @@ func TestHomePageCarriesBusinessIdentity(t *testing.T) {
 
 	page = home()
 	for _, want := range []string{
-		"<title>Toko Baju Sejahtera — Pakaian rapi untuk setiap hari</title>",
-		`<meta property="og:title" content="Toko Baju Sejahtera — Pakaian rapi untuk setiap hari"/>`,
+		"<title>Maju Bersama — Melayani sepenuh hati, setiap hari</title>",
+		`<meta property="og:title" content="Maju Bersama — Melayani sepenuh hati, setiap hari"/>`,
 		`<script id="gonsu-site" type="application/json">`,
 		`"mode":"site"`, `"whatsapp":"https://wa.me/6281234567890"`,
 		"halaman depan",
@@ -362,7 +362,7 @@ func TestHomePageCarriesBusinessIdentity(t *testing.T) {
 		Name string `json:"name"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&site); err != nil || resp.StatusCode != http.StatusOK ||
-		site.Mode != "site" || site.Name != "Toko Baju Sejahtera" {
+		site.Mode != "site" || site.Name != "Maju Bersama" {
 		t.Errorf("GET /site.json = %d, %+v, %v", resp.StatusCode, site, err)
 	}
 }
