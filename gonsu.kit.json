@@ -12,7 +12,8 @@
     "KIT.md",
     "LICENSE",
     "scripts/kit-check.sh",
-    ".github/workflows/kit.yml"
+    ".github/workflows/kit.yml",
+    ".github/actionlint.yaml"
   ],
   "install": [
     {

@@ -69,7 +69,8 @@ berkas yang ikut ke produk — misalnya pengantar di `AGENTS.md`:
 
 Berkas yang seluruhnya milik kit didaftarkan di `remove`: manifes, berkas
 ini, `LICENSE` (lisensi kit; lisensi produk urusan tim produknya),
-`scripts/kit-check.sh`, dan `.github/workflows/kit.yml`.
+`scripts/kit-check.sh`, `.github/workflows/kit.yml`, dan
+`.github/actionlint.yaml`.
 
 ## Versi kit
 

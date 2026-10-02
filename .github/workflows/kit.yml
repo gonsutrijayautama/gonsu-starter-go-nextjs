@@ -30,3 +30,13 @@ jobs:
 
       - name: scripts/kit-check.sh
         run: scripts/kit-check.sh
+
+      # release.yml hanya berjalan saat tag di runner rilis GONSU, jadi tidak
+      # pernah dijalankan CI ini. actionlint (dengan shellcheck bawaan runner)
+      # memeriksa sintaks, ekspresi, dan skrip setiap workflow.
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+
+      - name: actionlint
+        run: go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.12 -config-file .github/actionlint.yaml .github/workflows/*.yml
