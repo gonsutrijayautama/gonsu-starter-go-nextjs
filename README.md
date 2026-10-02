@@ -198,7 +198,33 @@ yang dibacanya.
 | `GONSU_*` | GONSU | login, lisensi, pemberian akses — dibaca kit, bukan kode produk |
 | `GONSU_PORTAL_URL` | GONSU | alamat Portal untuk tautan langganan, tagihan, dan paket; kosong berarti tautannya tidak tampil |
 | `APP_TRUSTED_PROXIES` | operator | alamat reverse proxy yang boleh menulis `X-Forwarded-For`; kosong berarti diabaikan |
+| `STORAGE_ENDPOINT`, `STORAGE_REGION`, `STORAGE_BUCKET`, `STORAGE_ACCESS_KEY_ID`, `STORAGE_SECRET_ACCESS_KEY` | GONSU (cloud); pelanggan (self-host) | bucket penyimpanan berkas pemasangan ini, lewat API S3. Kelimanya ada, atau tidak satu pun — tidak satu pun berarti berkas disimpan di database |
+| `APP_STORAGE_PATH_STYLE` | operator | `true` untuk layanan S3 beralamat `https://host/bucket/key`; hanya untuk penyimpanan milik sendiri |
 | `APP_DEV_ORGANIZATION_ID` | pengembang | hanya build `dev`: organization lokal |
 | `DEV_HTTP_ADDR` | `make run` | hanya build `dev`: alamat dengar; build rilis selalu `:8080` |
 
 Aplikasi mendengar di `:8080` — kontrak dengan chart GONSU, bukan konfigurasi.
+
+### Berkas di penyimpanan objek
+
+Bawaannya, isi logo dan gambar disimpan di database — tidak butuh layanan
+lain, dan ikut masuk backup database. Bila lima variabel `STORAGE_*` terisi,
+berkas **baru** disimpan di bucket yang berbicara API S3 (Cloudflare R2, AWS
+S3, dan sejenisnya):
+
+- **cloud GONSU**: platform menyiapkan satu bucket per aplikasi dan mengisi
+  `STORAGE_*` di Secret yang sama dengan `DATABASE_*`. Selama platform belum
+  mengisinya, berkas tetap di database;
+- **self-host**: GONSU tidak menyediakan penyimpanan objek. Berkas di database,
+  kecuali pelanggan mengisi `STORAGE_*` dengan penyimpanan S3 miliknya;
+- berkas yang isinya sudah di database tetap tampil; tidak ada data yang
+  perlu dipindahkan. Arah sebaliknya tidak: mengosongkan `STORAGE_*` lagi
+  membuat berkas yang isinya di bucket tidak terbaca;
+- bucket-nya tidak perlu dibuka untuk umum — berkas tetap disajikan aplikasi
+  di `/media/{id}`. Satu bucket hanya untuk satu pemasangan;
+- bucket yang tidak terjangkau, atau `STORAGE_*` yang terisi sebagian,
+  **menggagalkan start**, supaya salah konfigurasi tidak baru ketahuan saat
+  pengguna mengunggah logo.
+
+Kuota penyimpanan per paket belum dipasang: nama hak pakainya belum
+ditetapkan GONSU.

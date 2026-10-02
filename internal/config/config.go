@@ -4,6 +4,8 @@
 // Nama variabel ditentukan GONSU dan dipakai apa adanya — jangan menambah nama
 // sendiri untuk nilai yang sama. Port sengaja tidak ada di sini: 8080 adalah
 // kontrak dengan chart, bukan konfigurasi.
+//
+// Yang berawalan APP_ adalah milik produk: GONSU tidak mengisinya.
 package config
 
 import (
@@ -63,7 +65,45 @@ type Config struct {
 	//                 memasang maupun mengetahuinya, dan tidak ada jaminan
 	//                 jaringan bahwa tidak ada jalan lain ke aplikasi.
 	TrustedProxies string
+
+	// ObjectStorage adalah bucket penyimpanan berkas pemasangan ini. Tidak
+	// dikonfigurasi berarti isi berkas disimpan di database.
+	ObjectStorage ObjectStorage
 }
+
+// ObjectStorage adalah alamat dan kredensial bucket yang berbicara API S3
+// (Cloudflare R2, AWS S3, dan sejenisnya). Satu bucket hanya dipakai satu
+// pemasangan.
+type ObjectStorage struct {
+	Endpoint string
+	Region   string
+	// Bucket kosong berarti penyimpanan objek tidak dikonfigurasi.
+	Bucket          string
+	AccessKeyID     string
+	SecretAccessKey string
+	// PathStyle: alamat https://host/bucket/key alih-alih
+	// https://bucket.host/key.
+	PathStyle bool
+}
+
+// Configured melaporkan apakah penyimpanan objek dikonfigurasi.
+func (o ObjectStorage) Configured() bool { return o.Bucket != "" }
+
+// storageKeys adalah lima kunci STORAGE_* — kontrak GONSU, sama seperti
+// DATABASE_*: kelimanya ada, atau tidak satu pun. Di cloud GONSU yang
+// mengisinya; di self-host pelanggan boleh mengisinya dengan penyimpanan S3
+// miliknya.
+var storageKeys = [...]string{
+	"STORAGE_ENDPOINT",
+	"STORAGE_REGION",
+	"STORAGE_BUCKET",
+	"STORAGE_ACCESS_KEY_ID",
+	"STORAGE_SECRET_ACCESS_KEY",
+}
+
+// envStoragePathStyle milik produk, bukan kontrak GONSU: untuk layanan S3
+// beralamat https://host/bucket/key, yang umum pada penyimpanan milik sendiri.
+const envStoragePathStyle = "APP_STORAGE_PATH_STYLE"
 
 // Load membaca DATABASE_URL (atau DATABASE_HOST, DATABASE_PORT,
 // DATABASE_NAME, DATABASE_USER, DATABASE_PASSWORD) dan variabel milik
@@ -83,7 +123,53 @@ func Load(getenv func(string) string) (Config, error) {
 	if cfg.OIDCRecheck, err = seconds(getenv, "GONSU_OIDC_RECHECK_SECONDS"); err != nil {
 		return Config{}, err
 	}
+	if cfg.ObjectStorage, err = objectStorage(getenv); err != nil {
+		return Config{}, err
+	}
 	return cfg, nil
+}
+
+// objectStorage membaca STORAGE_*. Tidak satu pun terisi berarti tidak
+// dikonfigurasi. Yang terisi sebagian DITOLAK: diam-diam kembali ke database
+// membuat berkas tersimpan di tempat yang tidak dimaksud.
+func objectStorage(getenv func(string) string) (ObjectStorage, error) {
+	values := make(map[string]string, len(storageKeys))
+	var missing []string
+	for _, key := range storageKeys {
+		// Kredensial ikut di-trim: nilainya dari berkas secret, yang sering
+		// berakhir baris baru, dan kunci S3 tidak memuat spasi.
+		if values[key] = strings.TrimSpace(getenv(key)); values[key] == "" {
+			missing = append(missing, key)
+		}
+	}
+	pathStyle := strings.TrimSpace(getenv(envStoragePathStyle))
+	if len(missing) == len(storageKeys) && pathStyle == "" {
+		return ObjectStorage{}, nil
+	}
+	if len(missing) > 0 {
+		return ObjectStorage{}, fmt.Errorf("konfigurasi penyimpanan objek belum lengkap: %s belum diisi",
+			strings.Join(missing, ", "))
+	}
+
+	o := ObjectStorage{
+		Endpoint:        values["STORAGE_ENDPOINT"],
+		Region:          values["STORAGE_REGION"],
+		Bucket:          values["STORAGE_BUCKET"],
+		AccessKeyID:     values["STORAGE_ACCESS_KEY_ID"],
+		SecretAccessKey: values["STORAGE_SECRET_ACCESS_KEY"],
+	}
+	u, err := url.Parse(o.Endpoint)
+	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+		return ObjectStorage{}, fmt.Errorf("STORAGE_ENDPOINT %q harus alamat http(s)", o.Endpoint)
+	}
+	if pathStyle != "" {
+		v, err := strconv.ParseBool(pathStyle)
+		if err != nil {
+			return ObjectStorage{}, fmt.Errorf("%s %q harus true atau false", envStoragePathStyle, pathStyle)
+		}
+		o.PathStyle = v
+	}
+	return o, nil
 }
 
 // GonsuLoginConfigured melaporkan apakah GONSU memberi pemasangan ini login:

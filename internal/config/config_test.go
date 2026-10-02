@@ -226,3 +226,106 @@ func TestGonsuLoginConfigured(t *testing.T) {
 		t.Error("Config tanpa Getenv mengaku diberi login GONSU")
 	}
 }
+
+func TestLoadObjectStorage(t *testing.T) {
+	// Lima kunci kontrak GONSU, seperti disuntikkan platform untuk R2.
+	full := map[string]string{
+		"STORAGE_ENDPOINT":          "https://akun.r2.cloudflarestorage.com",
+		"STORAGE_REGION":            "auto",
+		"STORAGE_BUCKET":            "berkas",
+		"STORAGE_ACCESS_KEY_ID":     "kunci\n",
+		"STORAGE_SECRET_ACCESS_KEY": "rahasia\n",
+	}
+	with := func(change func(map[string]string)) func(string) string {
+		m := map[string]string{"DATABASE_URL": "postgres://u:p@db/app"}
+		for k, v := range full {
+			m[k] = v
+		}
+		if change != nil {
+			change(m)
+		}
+		return env(m)
+	}
+
+	t.Run("tidak satu pun: tidak dikonfigurasi", func(t *testing.T) {
+		cfg, err := Load(env(map[string]string{"DATABASE_URL": "postgres://u:p@db/app"}))
+		if err != nil {
+			t.Fatalf("Load: %v", err)
+		}
+		if cfg.ObjectStorage.Configured() {
+			t.Errorf("ObjectStorage = %+v, ingin kosong", cfg.ObjectStorage)
+		}
+	})
+
+	t.Run("kelimanya", func(t *testing.T) {
+		cfg, err := Load(with(nil))
+		if err != nil {
+			t.Fatalf("Load: %v", err)
+		}
+		// Baris baru dari berkas secret dibuang.
+		want := ObjectStorage{
+			Endpoint: "https://akun.r2.cloudflarestorage.com", Region: "auto", Bucket: "berkas",
+			AccessKeyID: "kunci", SecretAccessKey: "rahasia",
+		}
+		if cfg.ObjectStorage != want {
+			t.Errorf("ObjectStorage = %+v, ingin %+v", cfg.ObjectStorage, want)
+		}
+	})
+
+	t.Run("path style milik produk", func(t *testing.T) {
+		cfg, err := Load(with(func(m map[string]string) { m["APP_STORAGE_PATH_STYLE"] = "true" }))
+		if err != nil {
+			t.Fatalf("Load: %v", err)
+		}
+		if !cfg.ObjectStorage.PathStyle {
+			t.Errorf("ObjectStorage = %+v, ingin PathStyle", cfg.ObjectStorage)
+		}
+	})
+
+	// Kelimanya ada, atau tidak satu pun. Yang terisi sebagian ditolak:
+	// diam-diam kembali ke database membuat berkas tersimpan di tempat yang
+	// tidak dimaksud.
+	for _, key := range storageKeys {
+		t.Run("tanpa "+key, func(t *testing.T) {
+			_, err := Load(with(func(m map[string]string) { delete(m, key) }))
+			if err == nil {
+				t.Fatal("Load lolos")
+			}
+			if !strings.Contains(err.Error(), key+" belum diisi") {
+				t.Errorf("galat = %q, ingin menyebut %s saja", err, key)
+			}
+			if strings.Contains(err.Error(), "rahasia") {
+				t.Errorf("galat memuat secret: %v", err)
+			}
+		})
+	}
+
+	rejected := []struct {
+		name string
+		env  func(string) string
+		want string
+	}{
+		{"hanya bucket", env(map[string]string{"DATABASE_URL": "postgres://u:p@db/app", "STORAGE_BUCKET": "berkas"}),
+			"STORAGE_ENDPOINT, STORAGE_REGION, STORAGE_ACCESS_KEY_ID, STORAGE_SECRET_ACCESS_KEY belum diisi"},
+		{"hanya path style", env(map[string]string{"DATABASE_URL": "postgres://u:p@db/app", "APP_STORAGE_PATH_STYLE": "true"}),
+			"STORAGE_BUCKET"},
+		{"endpoint bukan alamat", with(func(m map[string]string) { m["STORAGE_ENDPOINT"] = "s3.internal" }),
+			"STORAGE_ENDPOINT"},
+		{"path style bukan boolean", with(func(m map[string]string) { m["APP_STORAGE_PATH_STYLE"] = "ya" }),
+			"APP_STORAGE_PATH_STYLE"},
+	}
+	for _, tt := range rejected {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := Load(tt.env)
+			if err == nil {
+				t.Fatal("Load lolos")
+			}
+			if !strings.Contains(err.Error(), tt.want) {
+				t.Errorf("galat = %q, ingin memuat %q", err, tt.want)
+			}
+			if strings.Contains(err.Error(), "rahasia") {
+				t.Errorf("galat memuat secret: %v", err)
+			}
+		})
+	}
+}
