@@ -1,66 +1,17 @@
-# Pipeline rilis produk-contoh — disalin dari pipeline rilis GONSU One, yang
-# menjadi sumbernya. Yang berbeda hanya nilai di `env` dan konteks build (akar
-# repo ini, dengan --build-arg VERSION). Perubahan di sumbernya disalin ulang ke
-# sini, bukan ditulis ulang dengan cara lain.
+# Rilis produk-contoh ke GONSU: tag v* → image dibangun, dipindai, didaftarkan,
+# ditandatangani GONSU, lalu diterbitkan.
 #
-# Dipicu oleh TAG, bukan oleh push ke branch: yang menghasilkan rilis adalah
-# keputusan menandai sebuah commit, bukan kebetulan ada yang di-merge.
+# Langkah-langkahnya TIDAK ada di sini. Berkas ini hanya memanggil workflow
+# rilis GONSU, supaya perbaikan pipeline sampai ke setiap produk tanpa menyalin
+# apa pun. Kontraknya — masukan, yang harus sudah ada, dan arti pesan galatnya —
+# ada di https://github.com/gonsutrijayautama/gonsu-release.
 #
-#   make smoke VERSION=1.0.0
-#   git tag v1.0.0 && git push origin v1.0.0
+# Berjalan di runner GitHub dan tidak memegang kunci penandatangan: yang
+# dibawanya adalah bukti dari GitHub tentang job ini (`id-token: write`), dan
+# GONSU yang menandatangani bila bukti itu cocok.
 #
-# ---------------------------------------------------------------------------
-# YANG DILAKUKAN, DAN URUTANNYA MENENTUKAN
-# ---------------------------------------------------------------------------
-#
-#   1. build          image produk, disematkan dengan digest
-#   2. push           ke registry GONSU, dengan token dorong dari GONSU
-#   3. scan           trivy, laporan LENGKAP disimpan sebagai bukti
-#   4. sign           cosign, kunci di OpenBao — tidak pernah keluar dari sana
-#   5. attest         laporan pemindaian dilampirkan, bertanda tangan
-#   6. register       GONSU memverifikasi sendiri tanda tangan dan bukti itu
-#   7. publish        ditolak bila salah satu pemeriksaan gagal
-#
-# Langkah 6 dan 7 tidak mempercayai KLAIM pipeline ini: status tanda tangan dan
-# pemindaian tidak dikirim, dan GONSU membaca sendiri tanda tangan serta bukti
-# di registry lalu memutuskan.
-#
-# Itu BUKAN berarti pipeline yang disusupi hanya dapat gagal. Pipeline ini
-# memegang hak menandatangani dengan kunci GONSU, jadi pipeline yang disusupi
-# DAPAT menandatangani image apa pun beserta laporan pemindaian palsu. Yang
-# menjaganya adalah siapa yang dapat menjalankannya: runner `gonsu-openbao`
-# yang tidak menerima job PR, kredensial OpenBao berumur pendek yang dapat
-# dicabut seketika, dan siapa yang boleh mendorong tag.
-#
-# ---------------------------------------------------------------------------
-# YANG DIBUTUHKAN
-# ---------------------------------------------------------------------------
-#
-# Di Console GONSU: produk berkode PRODUCT_CODE dengan variant VARIANT_CODE.
-# Salah ketik di salah satu sisi menghasilkan rilis yang terdaftar tetapi tidak
-# dapat dipasang.
-#
-# Runner harus dapat menghubungi OpenBao GONSU. Kunci penandatangan TIDAK
-# PERNAH disalin ke secret GitHub — menyalinnya menghapus seluruh alasan ia
-# disimpan terpusat. Minta tim platform GONSU membuka runner `gonsu-openbao`
-# untuk repo ini.
-#
-# Secret repo (diberikan tim platform GONSU):
-#
-#   GONSU_API_BASE_URL          alamat API GONSU
-#   GONSU_RELEASE_TOKEN         token untuk MENDAFTARKAN rilis di /internal/v1
-#   GONSU_REGISTRY_CI_TOKEN     sandi `docker login` sebagai `gonsu-ci`. Hanya
-#                               memberi pull,push pada repository produk, dan
-#                               BUKAN nilai yang sama dengan di atas
-#   GONSU_REGISTRY_HOST         alamat registry GONSU
-#   OPENBAO_ADDR                alamat OpenBao
-#   OPENBAO_CI_ROLE_ID          AppRole `gonsu-ci`, bagian yang tidak rahasia
-#   OPENBAO_CI_SECRET_ID        AppRole `gonsu-ci`, bagian rahasianya
-#
-# TIDAK ada token OpenBao statis di GitHub Secrets: token statis berumur
-# selamanya, sedangkan yang ditukar dari AppRole berumur 20 menit dan mati
-# bersama langkah yang memakainya.
-
+# HANYA dipicu tag. Dipanggil dari cabang atau pull request, GONSU menolak
+# menandatanganinya; jangan menambahkan trigger lain.
 name: Release
 
 on:
@@ -70,263 +21,19 @@ on:
 permissions:
   contents: read
 
-env:
-  COSIGN_VERSION: v2.6.1
-  TRIVY_VERSION: "0.74.0"
-  # sha256 trivy_<versi>_Linux-64bit.tar.gz, sama dengan ci.yml. Dipatok di
-  # sini, bukan dibaca dari checksums.txt rilis yang sama: pihak yang dapat
-  # mengganti arsipnya dapat mengganti checksum-nya juga.
-  TRIVY_SHA256: "2ae6fe3ee734b7fdf11335663e18c75ea12dccc76062f09f164a3b0f8be4371a"
-  # Harus SAMA dengan kode produk dan variant di Console GONSU.
-  PRODUCT_CODE: produk-contoh
-  VARIANT_CODE: web
-  # Rilis pertama mengikat repository ini ke produk/variant di atas; rilis
-  # berikutnya harus mendarat di repository yang sama.
-  IMAGE_PATH: products/produk-contoh-web
-
 jobs:
   release:
-    # Self-hosted, dan itu keharusan bukan pilihan: langkah penandatanganan
-    # harus dapat menghubungi OpenBao, dan runner GitHub adalah VM sekali pakai
-    # di jaringan GitHub.
-    #
-    # Label `gonsu-openbao`, bukan `self-hosted` polos: dengan label polos
-    # setiap job yang lupa menyebut runner akan mendarat di mesin yang memegang
-    # kunci rantai pasok.
-    #
-    # Workflow ini dipicu TAG, bukan `pull_request`. Jangan pernah
-    # menambahkan trigger `pull_request` di sini.
-    runs-on: [self-hosted, gonsu-openbao]
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      # Kredensial docker hanya untuk job ini. Tanpa ini `docker login` di bawah
-      # menulis gonsu-ci:<token> ke ~/.docker/config.json runner dan
-      # meninggalkannya di sana untuk job apa pun sesudahnya.
-      - name: Konfigurasi docker sementara
-        run: |
-          mkdir -p "$RUNNER_TEMP/docker"
-          echo "DOCKER_CONFIG=$RUNNER_TEMP/docker" >> "$GITHUB_ENV"
-
-      - name: Menentukan versi dari tag
-        id: versi
-        run: |
-          # Bentuk tag DIPERIKSA sebelum nilainya dipakai di mana pun.
-          #
-          # Nama tag ditentukan siapa pun yang boleh mendorong tag, dan git
-          # mengizinkan kutip tunggal di dalam nama ref. Satu kutip tunggal di
-          # nama tag sudah cukup untuk keluar dari kutipan pada langkah
-          # berikutnya, dan sisanya berjalan sebagai perintah di runner yang
-          # memegang token OpenBao. Daftar-putih semver menutup seluruh kelas
-          # itu sekaligus, bukan satu karakter per satu karakter.
-          printf '%s' "$GITHUB_REF_NAME" \
-            | grep -qxE 'v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?' || {
-              echo "tag $GITHUB_REF_NAME bukan vMAJOR.MINOR.PATCH semver murni"
-              exit 1
-            }
-
-          # Tag `v2.15.0` menjadi versi `2.15.0`. GONSU menyimpan semver murni;
-          # awalan `v` adalah kebiasaan git, bukan bagian versinya.
-          echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
-
-      - uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
-        with:
-          cosign-release: ${{ env.COSIGN_VERSION }}
-
-      - name: Memasang trivy
-        run: |
-          # Checksum diperiksa sebelum diekstrak: yang dipindai di sini adalah
-          # image yang akan ditandatangani, dan pemindai yang diganti di tengah
-          # jalan dapat melaporkan apa pun yang diinginkan penggantinya.
-          BASE="https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}"
-          ARCHIVE="trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz"
-          curl -sfLO "$BASE/$ARCHIVE"
-          echo "${TRIVY_SHA256}  ${ARCHIVE}" | sha256sum -c -
-
-          # Dipasang ke direktori milik runner, BUKAN /usr/local/bin: di
-          # self-hosted runner `sudo` menuntut sandi.
-          mkdir -p "$RUNNER_TEMP/bin"
-          tar -xzf "$ARCHIVE" -C "$RUNNER_TEMP/bin" trivy
-          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
-          rm -f "$ARCHIVE"
-
-      - name: Masuk ke registry GONSU
-        # Sandi lewat stdin, bukan argumen: yang lewat argumen tersimpan di
-        # daftar process pada runner yang dipakai bersama.
-        env:
-          REGISTRY_CI_TOKEN: ${{ secrets.GONSU_REGISTRY_CI_TOKEN }}
-          REGISTRY_HOST: ${{ secrets.GONSU_REGISTRY_HOST }}
-        run: |
-          printf '%s' "$REGISTRY_CI_TOKEN" \
-            | docker login "$REGISTRY_HOST" -u gonsu-ci --password-stdin
-
-      - name: Membangun dan mendorong image
-        id: image
-        env:
-          REGISTRY_HOST: ${{ secrets.GONSU_REGISTRY_HOST }}
-          IMAGE_PATH: ${{ env.IMAGE_PATH }}
-          VERSION: ${{ steps.versi.outputs.version }}
-        run: |
-          IMAGE="$REGISTRY_HOST/$IMAGE_PATH"
-
-          # Label versi dan revisi membuat setiap tag menghasilkan digest
-          # sendiri, walau isi image-nya tidak berubah. Registrasi rilis
-          # menolak digest yang sudah terdaftar untuk rilis lain. $VERSION
-          # sudah lolos daftar-putih semver di langkah "Menentukan versi".
-          docker build --build-arg VERSION="$VERSION" \
-            --label "org.opencontainers.image.version=$VERSION" \
-            --label "org.opencontainers.image.revision=$GITHUB_SHA" \
-            -t "$IMAGE:$VERSION" .
-          docker push "$IMAGE:$VERSION"
-
-          # Digest dibaca SETELAH push: sebelum didorong, image lokal belum
-          # memiliki digest registry sama sekali.
-          DIGEST="$(docker inspect --format='{{index .RepoDigests 0}}' "$IMAGE:$VERSION" | cut -d@ -f2)"
-          echo "image=$IMAGE" >> "$GITHUB_OUTPUT"
-          echo "digest=$DIGEST" >> "$GITHUB_OUTPUT"
-
-      - name: Memindai kerentanan
-        env:
-          REF: ${{ steps.image.outputs.image }}@${{ steps.image.outputs.digest }}
-        run: |
-          trivy image --quiet --scanners vuln --format json \
-            --severity CRITICAL,HIGH,MEDIUM "$REF" > scan.json
-
-          # Laporan LENGKAP yang disimpan, bukan kesimpulan. GONSU menghitung
-          # sendiri apa yang menghalangi, sehingga ambangnya dapat diubah tanpa
-          # memindai ulang apa pun.
-          python3 - <<'PY'
-          import datetime, json, pathlib
-          report = json.load(open("scan.json"))
-          now = datetime.datetime.now(datetime.UTC).isoformat().replace("+00:00", "Z")
-          pathlib.Path("predicate.json").write_text(json.dumps({
-              "invocation": {"parameters": [], "uri": "", "event_id": "",
-                             "builder": {"id": "github-actions"}},
-              "scanner": {"uri": "pkg:github/aquasecurity/trivy", "version": "",
-                          "db": {"uri": "", "version": ""}, "result": report},
-              "metadata": {"scanStartedOn": now, "scanFinishedOn": now},
-          }))
-          PY
-
-      - name: Menandatangani dan melampirkan bukti
-        env:
-          VAULT_ADDR: ${{ secrets.OPENBAO_ADDR }}
-          OPENBAO_CI_ROLE_ID: ${{ secrets.OPENBAO_CI_ROLE_ID }}
-          OPENBAO_CI_SECRET_ID: ${{ secrets.OPENBAO_CI_SECRET_ID }}
-          REF: ${{ steps.image.outputs.image }}@${{ steps.image.outputs.digest }}
-          VERSION: ${{ steps.versi.outputs.version }}
-        run: |
-          # Token ditukar DI SINI, dipakai DI SINI, dan hilang bersama langkah
-          # ini. Ia tidak lewat GITHUB_OUTPUT maupun GITHUB_ENV — keduanya
-          # tersimpan pada run dan terbaca langkah lain.
-          VAULT_TOKEN="$(python3 - <<'PY'
-          import json, os, urllib.request
-          addr = os.environ["VAULT_ADDR"].rstrip("/")
-          body = json.dumps({"role_id": os.environ["OPENBAO_CI_ROLE_ID"],
-                             "secret_id": os.environ["OPENBAO_CI_SECRET_ID"]}).encode()
-          req = urllib.request.Request(addr + "/v1/auth/approle/login", data=body,
-                                       headers={"Content-Type": "application/json"})
-          print(json.load(urllib.request.urlopen(req, timeout=20))["auth"]["client_token"])
-          PY
-          )"
-          [ -n "$VAULT_TOKEN" ] || { echo "login AppRole ke OpenBao gagal"; exit 1; }
-
-          # Disamarkan sebelum perintah apa pun berjalan: cosign yang gagal
-          # dapat mencetak isi environment ke log yang tersimpan 90 hari.
-          echo "::add-mask::$VAULT_TOKEN"
-          export VAULT_TOKEN
-
-          # --tlog-upload=false: tidak ada apa pun yang dikirim ke transparency
-          # log publik. Setiap rilis setiap pelanggan akan menjadi metadata yang
-          # dapat dicari siapa pun kalau ini dinyalakan.
-          # Anotasi produk dan versi ikut ditandatangani. GONSU dan agent
-          # pelanggan mencocokkannya dengan rilis yang didaftarkan, sehingga
-          # tanda tangan sah milik produk atau versi lain tidak dapat dipakai
-          # ulang.
-          cosign sign --key hashivault://cosign-signing-v1 --yes --tlog-upload=false \
-            -a "gonsu.product=$PRODUCT_CODE" -a "gonsu.version=$VERSION" "$REF"
-          cosign attest --key hashivault://cosign-signing-v1 --yes --tlog-upload=false --replace \
-            --type vuln --predicate predicate.json "$REF"
-
-      - name: Mendaftarkan rilis
-        id: daftar
-        # SELURUH nilai masuk lewat env, TIDAK satu pun lewat ${{ }} di dalam
-        # blok run.
-        #
-        # Sintaks ${{ }} disubstitusi Actions sebagai TEKS sebelum shell
-        # melihatnya. Artinya nilai yang dapat dikendalikan orang lain — pesan
-        # commit yang paling jelas — berubah menjadi kode yang dijalankan
-        # runner. Dan runner inilah yang memegang token OpenBao serta token
-        # registrasi rilis.
-        #
-        # Heredoc-nya ikut dikutip (<<'PY') supaya shell tidak mengembangkan
-        # $(...) di dalamnya. Dua lapis, karena melewatkan satu saja cukup.
-        env:
-          PRODUCT_CODE: ${{ env.PRODUCT_CODE }}
-          VARIANT_CODE: ${{ env.VARIANT_CODE }}
-          VERSION: ${{ steps.versi.outputs.version }}
-          CHANGELOG: ${{ github.event.head_commit.message }}
-          # Commit yang ditandai tag rilis ini: digest menjawab image mana, SHA
-          # menjawab kode mana.
-          SOURCE_REVISION: ${{ github.sha }}
-          IMAGE: ${{ steps.image.outputs.image }}
-          DIGEST: ${{ steps.image.outputs.digest }}
-          API_BASE_URL: ${{ secrets.GONSU_API_BASE_URL }}
-          RELEASE_TOKEN: ${{ secrets.GONSU_RELEASE_TOKEN }}
-        run: |
-          # Status tanda tangan dan pemindaian TIDAK dikirim. GONSU
-          # memverifikasi sendiri dari bukti di registry; mengirimkan klaim
-          # hanya akan diabaikan.
-          BODY="$(python3 - <<'PY'
-          import json, os
-          e = os.environ
-          print(json.dumps({
-              "product_code": e["PRODUCT_CODE"],
-              "variant_code": e["VARIANT_CODE"],
-              "version": e["VERSION"],
-              "channel": "stable",
-              "changelog": e["CHANGELOG"],
-              "source_revision": e["SOURCE_REVISION"],
-              "artifacts": [{
-                  "kind": "oci", "platform": "linux", "architecture": "amd64",
-                  "location": e["IMAGE"],
-                  "tag": e["VERSION"],
-                  "digest": e["DIGEST"],
-              }],
-          }))
-          PY
-          )"
-
-          RESPONSE="$(curl -sS -w '\n%{http_code}' -X POST \
-            "$API_BASE_URL/internal/v1/releases" \
-            -H 'Content-Type: application/json' \
-            -H "X-GONSU-Release-Token: $RELEASE_TOKEN" \
-            -d "$BODY")"
-
-          STATUS="$(printf '%s' "$RESPONSE" | tail -n1)"
-          PAYLOAD="$(printf '%s' "$RESPONSE" | sed '$d')"
-          [ "$STATUS" = "201" ] || { echo "registrasi gagal ($STATUS): $PAYLOAD"; exit 1; }
-
-          echo "id=$(printf '%s' "$PAYLOAD" | python3 -c 'import json,sys; print(json.load(sys.stdin)["id"])')" >> "$GITHUB_OUTPUT"
-
-      - name: Mempublikasikan
-        env:
-          API_BASE_URL: ${{ secrets.GONSU_API_BASE_URL }}
-          RELEASE_TOKEN: ${{ secrets.GONSU_RELEASE_TOKEN }}
-          RELEASE_ID: ${{ steps.daftar.outputs.id }}
-        run: |
-          # Gerbangnya milik GONSU. Kalau tanda tangan tidak cocok atau ada
-          # kerentanan yang menghalangi, langkah ini gagal — dan rilisnya
-          # tertinggal di `staged`, terlihat staf GONSU tetapi tidak terlihat
-          # pelanggan.
-          STATUS="$(curl -sS -o "$RUNNER_TEMP/publish.json" -w '%{http_code}' -X POST \
-            "$API_BASE_URL/internal/v1/releases/$RELEASE_ID/status" \
-            -H 'Content-Type: application/json' \
-            -H "X-GONSU-Release-Token: $RELEASE_TOKEN" \
-            -d '{"status":"published"}')"
-
-          if [ "$STATUS" != "200" ]; then
-            echo "::error::Publikasi ditolak GONSU. Rilis tetap di status staged."
-            cat "$RUNNER_TEMP/publish.json"
-            exit 1
-          fi
+    permissions:
+      contents: read
+      id-token: write
+    uses: gonsutrijayautama/gonsu-release/.github/workflows/release.yml@v1
+    with:
+      # Harus SAMA dengan kode produk dan variant di Console GONSU.
+      product_code: produk-contoh
+      variant_code: web
+      # Rilis pertama mengikat repository image ini, dan repository GitHub
+      # ini, ke produk/variant di atas; rilis berikutnya harus sama.
+      image_path: products/produk-contoh-web
+    secrets:
+      # Satu-satunya secret: token dorong registry, dari tim platform GONSU.
+      registry_token: ${{ secrets.GONSU_REGISTRY_CI_TOKEN }}

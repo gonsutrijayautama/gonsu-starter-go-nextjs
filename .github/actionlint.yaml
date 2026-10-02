@@ -1,8 +1,0 @@
-# actionlint untuk workflow kit (job "Manifes kit" di kit.yml). Berkas ini
-# milik kit: `gonsu new` membuangnya dari project hasil.
-#
-# release.yml berjalan di runner rilis GONSU yang dapat menjangkau OpenBao,
-# berlabel gonsu-openbao.
-self-hosted-runner:
-  labels:
-    - gonsu-openbao

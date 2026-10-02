@@ -9,7 +9,7 @@
 #   make test      tes unit + integrasi, build rilis DAN build dev
 #   make lint      backend dan frontend
 #   make e2e       uji ujung ke ujung di peramban (Playwright)
-#   make image     image rilis, Dockerfile yang sama dengan release.yml
+#   make image     image rilis, Dockerfile yang sama dengan yang dibangun saat rilis
 #   make smoke     image rilis diuji di bawah batasan chart GONSU
 
 PRODUCT := produk-contoh
@@ -76,7 +76,8 @@ lint:
 e2e: web db
 	scripts/e2e.sh
 
-## image: image rilis lokal. Label versi dan revisi sama dengan release.yml.
+## image: image rilis lokal, dari Dockerfile yang sama dengan yang dibangun
+## pipeline rilis GONSU saat tag v* didorong.
 image:
 	docker build --build-arg VERSION=$(VERSION) \
 	  --label org.opencontainers.image.version=$(VERSION) \

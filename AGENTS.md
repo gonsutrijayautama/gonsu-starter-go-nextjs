@@ -41,7 +41,7 @@ aplikasinya**: modul, data, dan layar yang dipakai pelanggan.
 | `web/` | frontend; hasil build-nya di `web/out` dan di-embed ke binary — aturannya di `web/AGENTS.md` dan panduan UI di `web/docs/ui-guide.md` |
 | `Dockerfile` | image rilis: frontend, lalu binary TANPA tag `dev`, di atas alpine sebagai UID 10001 |
 | `.github/workflows/ci.yml` | CI setiap PR — memanggil target make yang sama dengan di laptop |
-| `.github/workflows/release.yml` | rilis ke GONSU saat tag `v*`; disalin dari pipeline GONSU One — jangan ditulis ulang |
+| `.github/workflows/release.yml` | rilis ke GONSU saat tag `v*`; hanya memanggil workflow rilis GONSU (`gonsu-release`) — langkahnya tidak disalin ke sini |
 | `scripts/` | `smoke.sh` (image rilis di bawah batasan chart GONSU) dan `e2e.sh` (server untuk uji peramban) |
 
 Stack sudah diputuskan: `net/http` + `chi`, `pgx/v5`, `sqlc`, `goose`,
@@ -253,11 +253,14 @@ Jangan pernah `if plan == "pro"`.
   pemeriksaan environment.
 - **Satu binary di `:8080`**, migrasi saat start, filesystem read-only.
   `make smoke` membuktikannya pada image rilis.
-- **Image rilis tanpa tag `dev`.** `Dockerfile` dan `release.yml` tidak pernah
-  memakai `-tags dev`.
-- **`release.yml` hanya dipicu tag.** Jangan menambahkan trigger
-  `pull_request` atau `push` ke branch: runner-nya memegang hak menandatangani
-  image atas nama GONSU.
+- **Image rilis tanpa tag `dev`.** `Dockerfile` tidak pernah memakai
+  `-tags dev`, dan tetap menerima `ARG VERSION`: pipeline rilis meneruskan
+  versinya lewat `--build-arg VERSION`.
+- **`release.yml` hanya dipicu tag, dan hanya memanggil.** Jangan menambahkan
+  trigger `pull_request` atau `push` ke branch — GONSU hanya menandatangani
+  rilis yang dipicu tag — dan jangan menyalin langkah rilis ke dalamnya.
+  Job-nya wajib tetap punya `id-token: write`: tanpa itu GitHub menolak
+  workflow sebelum berjalan.
 - **Tanpa rahasia di repository.** Nilai rahasia datang dari environment yang
   diisi GONSU atau operator.
 
@@ -272,7 +275,11 @@ Jangan pernah `if plan == "pro"`.
   hilang;
 - menambah dependency besar, service tambahan, atau port selain `:8080`;
 - mendorong tag `v*` — tag menerbitkan rilis ke pelanggan;
-- mengubah `release.yml`, `IMAGE_PATH`, atau digest base image di `Dockerfile`.
+- mengubah `release.yml` — terutama `product_code`, `variant_code`, dan
+  `image_path`, yang terikat ke produk sejak rilis pertama — atau digest base
+  image di `Dockerfile`;
+- memindahkan repository ke akun GitHub lain: rilis pertama mengikat
+  repository ini ke produknya.
 
 ## Konvensi
 

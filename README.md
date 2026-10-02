@@ -67,8 +67,9 @@ Produk GONSU One, dibuat dengan `gonsu new`.
 - **CI dan pipeline rilis** — `.github/workflows/ci.yml` di setiap PR (lint,
   tes, uji peramban, image rilis, pemindaian kerentanan) dan
   `.github/workflows/release.yml` saat tag `v*` didorong: image dibangun,
-  ditandatangani, didaftarkan, dan diterbitkan ke GONSU. Lihat
-  [Merilis ke GONSU](#merilis-ke-gonsu).
+  dipindai, didaftarkan, ditandatangani GONSU, dan diterbitkan. Berkas itu
+  hanya memanggil workflow rilis GONSU; tidak ada runner sendiri dan hanya
+  satu secret. Lihat [Merilis ke GONSU](#merilis-ke-gonsu).
 
 ## Menjalankan di laptop
 
@@ -119,23 +120,28 @@ Aturan lengkapnya ada di [AGENTS.md](AGENTS.md).
 
 ## Merilis ke GONSU
 
-Rilis adalah image di registry GONSU yang ditandatangani, dipindai, dan
+Rilis adalah image di registry GONSU yang dipindai, ditandatangani, dan
 diterbitkan GONSU sendiri. Rilis yang terbit tidak memasang dirinya sendiri:
 aplikasi cloud diperbarui lewat peluncuran yang dimulai staf GONSU di Console,
 atau oleh pelanggan sendiri dari Portal.
+
+`.github/workflows/release.yml` hanya memanggil workflow rilis GONSU
+([gonsu-release](https://github.com/gonsutrijayautama/gonsu-release)). Job-nya
+berjalan di runner GitHub dan tidak memegang kunci penandatangan: GONSU
+menandatangani image setelah memeriksa bukti dari GitHub bahwa rilis itu
+dibangun repository ini, dari tag itu.
 
 **Sekali, sebelum rilis pertama** — dikerjakan bersama tim platform GONSU:
 
 1. **Katalog di Console GONSU**: produk berkode `produk-contoh`, variant
    `web`, hak pakai `produk-contoh.core` dan `users.max`, paket beserta
    mode pemasangannya, harga, lalu umumkan. Kode produk dan variant harus sama
-   persis dengan `PRODUCT_CODE` dan `VARIANT_CODE` di `release.yml`.
-2. **Tujuh secret repo** yang disebut di kepala `.github/workflows/release.yml`
-   (alamat API dan registry, token rilis, token registry `gonsu-ci`, dan
-   AppRole OpenBao), diberikan tim platform. Tidak ada kunci penandatangan di
-   GitHub.
-3. **Runner `gonsu-openbao`** dibuka untuk repo ini. Hanya runner itu yang
-   dapat menjangkau OpenBao untuk menandatangani image.
+   persis dengan `product_code` dan `variant_code` di `release.yml`.
+2. **Satu secret repo**: `GONSU_REGISTRY_CI_TOKEN`, token dorong registry.
+   Tim platform yang mengisinya di repository ini; tim produk tidak membuat
+   token itu sendiri.
+3. **Repository ini berada di akun GitHub yang dipercaya platform.** Rilis
+   dari akun lain ditolak.
 
 **Setiap rilis:**
 
@@ -144,22 +150,24 @@ make smoke VERSION=1.0.0            # image rilis lulus uji chart GONSU
 git tag v1.0.0 && git push origin v1.0.0
 ```
 
-`release.yml` lalu membangun image `products/produk-contoh-web`, mendorongnya, memindai,
-menandatangani, mendaftarkan, dan menerbitkan. Yang paling sering menahan
-rilis:
+Tag harus berbentuk `vMAJOR.MINOR.PATCH`, boleh dengan akhiran prarilis
+(`v1.0.0-rc.1`). Workflow lalu membangun image `products/produk-contoh-web`,
+mendorongnya, memindainya, mendaftarkannya, menunggu GONSU menandatanganinya,
+dan menerbitkannya. Sebab kegagalannya tercetak di log job, dalam kalimat. Yang
+paling sering menahan rilis:
 
-- **Kerentanan CRITICAL/HIGH yang sudah ada perbaikannya** — rilisnya
-  tertinggal di `staged`. Job "Image rilis" di CI memakai ambang yang sama,
-  jadi biasanya sudah merah sebelum tag dibuat.
-- **Repository image berbeda** — rilis pertama mengikat `products/produk-contoh-web` ke
-  produk ini; jangan mengubah `IMAGE_PATH` sesudahnya.
-- **Tag ulang untuk image yang sama** — setiap versi punya digest sendiri
-  karena label versi, jadi versi yang sama tidak dapat didaftarkan dua kali;
-  naikkan versinya.
+- **Kerentanan yang menghalangi menurut kebijakan platform** — publikasi
+  ditolak dan rilisnya tertinggal di `staged`. Job "Image rilis" di CI
+  memindai image yang sama, jadi biasanya sudah merah sebelum tag dibuat.
+- **Repository image atau repository GitHub berbeda** — rilis pertama mengikat
+  `products/produk-contoh-web` dan repository ini ke produknya; jangan mengubah
+  `image_path` atau memindahkan repository sesudahnya. Mengubahnya dikerjakan
+  tim platform.
+- **Versi yang sama dirilis ulang** — versi yang sudah ditandatangani tidak
+  dapat didaftarkan lagi; naikkan versinya.
 
-**Belum ada runner?** Tim platform dapat memotong rilis di mesin GONSU dari
-image yang Anda bangun: `make image VERSION=1.0.0`, lalu serahkan image itu
-beserta versinya dan SHA commit-nya (`git rev-parse HEAD`).
+Rilis yang gagal tertinggal di `staged` dan tidak pernah terlihat pelanggan.
+Arti setiap pesan galat ada di README `gonsu-release`.
 
 Sesudah terbit, catatan rilis untuk pelanggan ditulis di Console → Rilis.
 
