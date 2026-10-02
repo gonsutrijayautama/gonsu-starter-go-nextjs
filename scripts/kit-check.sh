@@ -85,7 +85,15 @@ while IFS= read -r f; do
   [ "$begin" = "$end" ] || err "$f: $begin penanda gonsu-kit:begin tetapi $end penanda gonsu-kit:end"
 done < <(grep -lE 'gonsu-kit:(begin|end)' "${files[@]}" 2>/dev/null || true)
 
-# 7. Tag `v*` memicu release.yml (pipeline rilis PRODUK); kit memakai `kit-v*`.
+# 7. Nama berkas tidak memuat nilai contoh: `gonsu new` mengganti isi berkas,
+#    bukan namanya, dan menolak kit yang menamai berkas dengan identitas contoh.
+for value in "$code" "$name"; do
+  while IFS= read -r f; do
+    [ -n "$f" ] && err "nama berkas $f memuat nilai contoh \"$value\""
+  done < <(printf '%s\n' "${files[@]}" | grep -F -- "$value" || true)
+done
+
+# 8. Tag `v*` memicu release.yml (pipeline rilis PRODUK); kit memakai `kit-v*`.
 if git tag --list 'v*' | grep -q .; then
   err "ada tag v* di repository kit — tag kit berawalan kit- (lihat KIT.md)"
 fi
