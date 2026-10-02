@@ -9,6 +9,7 @@ Produk GONSU One, dibuat dengan `gonsu new`.
 | Repository image | `products/produk-contoh-web` |
 | Hak pakai utama | `produk-contoh.core` — daftarkan di Console, lalu isi di setiap paket |
 | Kuota pengguna | `users.max` — daftarkan di Console, lalu isi di setiap paket |
+| Kuota penyimpanan | `storage.gb` — daftarkan di Console, lalu isi di setiap paket |
 | Backend | Go (`github.com/gonsutrijayautama/gonsu-starter-go-nextjs`) |
 | Frontend | Next.js |
 
@@ -134,8 +135,8 @@ dibangun repository ini, dari tag itu.
 **Sekali, sebelum rilis pertama** — dikerjakan bersama tim platform GONSU:
 
 1. **Katalog di Console GONSU**: produk berkode `produk-contoh`, variant
-   `web`, hak pakai `produk-contoh.core` dan `users.max`, paket beserta
-   mode pemasangannya, harga, lalu umumkan. Kode produk dan variant harus sama
+   `web`, hak pakai `produk-contoh.core`, `users.max`, dan `storage.gb`,
+   paket beserta mode pemasangannya, harga, lalu umumkan. Kode produk dan variant harus sama
    persis dengan `product_code` dan `variant_code` di `release.yml`.
 2. **Satu secret repo**: `GONSU_REGISTRY_CI_TOKEN`, token dorong registry.
    Tim platform yang mengisinya di repository ini; tim produk tidak membuat
@@ -226,5 +227,17 @@ S3, dan sejenisnya):
   **menggagalkan start**, supaya salah konfigurasi tidak baru ketahuan saat
   pengguna mengunggah logo.
 
-Kuota penyimpanan per paket belum dipasang: nama hak pakainya belum
-ditetapkan GONSU.
+**Kuota penyimpanan** adalah hak pakai `storage.gb`: total penyimpanan
+pemasangan dalam GB (1 GB = 1.073.741.824 byte).
+
+- Hanya berlaku untuk bucket yang disediakan GONSU — cloud dengan `STORAGE_*`
+  terisi. Berkas di database, dan bucket milik pelanggan di self-host, tidak
+  dikenai kuota.
+- **Daftarkan `storage.gb` di Console dan isi nilainya di SETIAP paket.**
+  Paket yang tidak membawanya berarti nol: begitu GONSU menyediakan bucket,
+  setiap unggahan di paket itu ditolak. Tanpa nilai (tak terbatas) berarti
+  tanpa batas.
+- Unggahan yang melewati batas ditolak dengan `ENTITLEMENT_REQUIRED`, dan
+  administrator ditawari "Lihat paket". Melewati batas tidak menghapus apa
+  pun: berkas yang ada tetap tampil dan tetap dapat dihapus.
+- Mengganti logo atau gambar tidak menghitung berkas yang digantikannya.

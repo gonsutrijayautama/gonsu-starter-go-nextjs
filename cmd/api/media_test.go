@@ -2,16 +2,27 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"io"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
+
+	"github.com/gonsutrijayautama/gonsu-appkit-go/media"
+	"github.com/gonsutrijayautama/gonsu-one-sdk-go/web"
+
+	"github.com/gonsutrijayautama/gonsu-starter-go-nextjs/internal/apperr"
 	"github.com/gonsutrijayautama/gonsu-starter-go-nextjs/internal/authz"
 	"github.com/gonsutrijayautama/gonsu-starter-go-nextjs/internal/config"
+	"github.com/gonsutrijayautama/gonsu-starter-go-nextjs/internal/entitlement"
+	"github.com/gonsutrijayautama/gonsu-starter-go-nextjs/internal/modules"
 	"github.com/gonsutrijayautama/gonsu-starter-go-nextjs/internal/testdb"
 )
 
@@ -141,4 +152,163 @@ func TestLogoOnObjectStorage(t *testing.T) {
 	if bucket.len() != 0 {
 		t.Errorf("isi di bucket setelah logo dihapus = %d", bucket.len())
 	}
+}
+
+// limitOf adalah lisensi yang menjawab satu batas, dan mencatat key yang
+// ditanyakan.
+type limitOf struct {
+	entitlement.Noop
+	value     int64
+	unlimited bool
+	asked     *[]string
+}
+
+func (l limitOf) Limit(_ context.Context, key string) (int64, bool) {
+	if l.asked != nil {
+		*l.asked = append(*l.asked, key)
+	}
+	return l.value, l.unlimited
+}
+
+// Kuota hanya berlaku untuk bucket yang disediakan GONSU: mode cloud dengan
+// penyimpanan objek aktif. Di keadaan lain hak pakainya TIDAK dibaca — paket
+// yang tidak membawa storage.gb dijawab nol, dan nol menolak setiap unggahan.
+func TestMediaQuotaAppliesOnlyToPlatformBucket(t *testing.T) {
+	bucket := bucketConfig("https://s3.internal", "berkas")
+	tests := []struct {
+		name    string
+		mode    web.Mode
+		storage config.ObjectStorage
+		applies bool
+	}{
+		{"cloud, bucket dari platform", web.ModeCloud, bucket, true},
+		{"cloud, berkas di database", web.ModeCloud, config.ObjectStorage{}, false},
+		{"self-host, berkas di database", web.ModeSelfHost, config.ObjectStorage{}, false},
+		{"self-host, bucket milik pelanggan", web.ModeSelfHost, bucket, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var asked []string
+			// Paket tanpa storage.gb: nol, bukan tanpa batas.
+			quota := mediaQuota(tt.mode, tt.storage, limitOf{asked: &asked})
+			if (quota != nil) != tt.applies {
+				t.Fatalf("kuota berlaku = %v, ingin %v", quota != nil, tt.applies)
+			}
+			if !tt.applies {
+				return
+			}
+			limit, err := quota(context.Background(), uuid.New())
+			if err != nil || limit != 0 {
+				t.Errorf("batas = %d, %v; ingin 0", limit, err)
+			}
+			if len(asked) != 1 || asked[0] != "storage.gb" {
+				t.Errorf("hak pakai yang dibaca = %v, ingin storage.gb", asked)
+			}
+		})
+	}
+}
+
+func TestMediaQuotaFromEntitlement(t *testing.T) {
+	tests := []struct {
+		name      string
+		value     int64
+		unlimited bool
+		want      int64
+	}{
+		{"15 GB", 15, false, 15 << 30},
+		{"1 GB = 1.073.741.824 byte", 1, false, 1_073_741_824},
+		{"tanpa nilai: tanpa batas", 0, true, media.Unlimited},
+		{"key tidak dibawa paket: nol", 0, false, 0},
+		// Nilai negatif tidak boleh dibaca library sebagai tanpa batas.
+		{"nilai negatif: nol", -3, false, 0},
+		{"terlalu besar untuk dihitung dalam byte: tanpa batas", math.MaxInt64, false, media.Unlimited},
+	}
+	storage := bucketConfig("https://s3.internal", "berkas")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			quota := mediaQuota(web.ModeCloud, storage, limitOf{value: tt.value, unlimited: tt.unlimited})
+			got, err := quota(context.Background(), uuid.New())
+			if err != nil || got != tt.want {
+				t.Errorf("batas = %d, %v; ingin %d", got, err, tt.want)
+			}
+		})
+	}
+}
+
+// Kuota yang penuh ditolak dengan galat yang sama dengan hak pakai lain —
+// ENTITLEMENT_REQUIRED, menyebut storage.gb — supaya frontend menawarkan naik
+// paket. Melewati batas tidak menghapus apa pun: yang sudah ada tetap tampil
+// dan tetap dapat dihapus; hanya unggahan baru yang ditolak.
+func TestStorageQuotaOverHTTP(t *testing.T) {
+	pool := testdb.New(t)
+	a, err := prepare(context.Background(), pool, config.Config{}, quiet)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var limit atomic.Int64
+	limit.Store(media.Unlimited)
+	a.modules, err = modules.New(pool, a.org, quiet, modules.Options{
+		MediaQuota: func(context.Context, uuid.UUID) (int64, error) { return limit.Load(), nil },
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	app := serve(t, a)
+	_, admin := testdb.Tenant(t, pool, authz.RoleAdministrator)
+	cookie := sessionFor(t, pool, admin, time.Hour)
+	logo := logoPNG(t)
+	upload := func() *http.Response {
+		t.Helper()
+		return do(t, app, call{method: http.MethodPut, path: "/v1/business-profile/logo", body: logo, cookie: cookie,
+			header: map[string]string{"Content-Type": "image/png"}})
+	}
+	rejected := func(resp *http.Response, message string) {
+		t.Helper()
+		var env struct {
+			Error struct {
+				Code                string `json:"code"`
+				Message             string `json:"message"`
+				RequiredEntitlement string `json:"required_entitlement"`
+			} `json:"error"`
+		}
+		if err := json.NewDecoder(resp.Body).Decode(&env); err != nil {
+			t.Fatalf("response bukan envelope galat: %v", err)
+		}
+		if resp.StatusCode != http.StatusForbidden || env.Error.Code != apperr.CodeEntitlementRequired ||
+			env.Error.RequiredEntitlement != entitlement.StorageGB {
+			t.Errorf("unggah melebihi kuota = %d %+v, ingin 403 ENTITLEMENT_REQUIRED storage.gb", resp.StatusCode, env.Error)
+		}
+		if !strings.Contains(env.Error.Message, message) {
+			t.Errorf("pesan = %q, ingin memuat %q", env.Error.Message, message)
+		}
+	}
+
+	resp := upload()
+	p := decodeProfile(t, resp)
+	if resp.StatusCode != http.StatusOK || p.Logo == nil {
+		t.Fatalf("unggah logo = %d, %+v", resp.StatusCode, p)
+	}
+
+	// Kuota tepat sebesar logo yang ada: menggantinya dengan yang seukuran
+	// masih boleh, karena logo lama dihapus.
+	limit.Store(int64(len(logo)))
+	resp = upload()
+	if p = decodeProfile(t, resp); resp.StatusCode != http.StatusOK || p.Logo == nil {
+		t.Fatalf("mengganti logo saat kuota penuh = %d", resp.StatusCode)
+	}
+
+	// Paket turun di bawah pemakaian: unggahan baru ditolak...
+	limit.Store(8)
+	rejected(upload(), "Penyimpanan penuh")
+	// ...tetapi berkas yang ada tetap tampil, dan tetap dapat dihapus.
+	if resp := do(t, app, call{method: http.MethodGet, path: p.Logo.URL}); resp.StatusCode != http.StatusOK {
+		t.Errorf("GET %s saat melebihi kuota = %d, ingin 200", p.Logo.URL, resp.StatusCode)
+	}
+	if resp := do(t, app, call{method: http.MethodDelete, path: "/v1/business-profile/logo", cookie: cookie}); resp.StatusCode != http.StatusOK {
+		t.Errorf("hapus logo saat melebihi kuota = %d, ingin 200", resp.StatusCode)
+	}
+
+	// Paket tanpa storage.gb: nol, tidak boleh menyimpan sama sekali.
+	limit.Store(0)
+	rejected(upload(), "tidak menyertakan penyimpanan")
 }
