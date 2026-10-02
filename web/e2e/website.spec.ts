@@ -13,15 +13,15 @@ test("bawaannya halaman depan hanya pintu masuk", async ({ page }) => {
 })
 
 test("administrator menyalakan web perusahaan, dan pengunjung melihatnya tanpa masuk", async ({ page, browser }) => {
-  const tagline = `Pakaian rapi setiap hari ${Date.now()}`
+  const tagline = `Melayani sepenuh hati ${Date.now()}`
   await signIn(page, "administrator", "/settings/website/")
   await expect(page.getByRole("heading", { name: "Website", exact: true })).toBeVisible()
 
   await page.getByRole("radio", { name: /Web perusahaan/ }).click()
   await page.getByLabel("Tagline").fill(tagline)
   await page.getByRole("button", { name: "Tambah layanan" }).click()
-  await page.getByLabel("Nama layanan").fill("Jahit ukuran")
-  await page.getByLabel("Keterangan").fill("Dijahit sesuai ukuran badan.")
+  await page.getByLabel("Nama layanan").fill("Konsultasi")
+  await page.getByLabel("Keterangan").fill("Bicarakan kebutuhan Anda dengan tim kami.")
   await page.getByLabel("Jam kerja").fill("Senin–Sabtu 09.00–17.00")
   await page.getByLabel("WhatsApp").fill("0812-3456-7890")
   await page.getByRole("button", { name: "Simpan" }).click()
@@ -37,7 +37,7 @@ test("administrator menyalakan web perusahaan, dan pengunjung melihatnya tanpa m
   const visitor = await anonymous.newPage()
   await visitor.goto("/")
   await expect(visitor.getByRole("heading", { level: 1, name: tagline })).toBeVisible()
-  await expect(visitor.getByRole("heading", { name: "Jahit ukuran" })).toBeVisible()
+  await expect(visitor.getByRole("heading", { name: "Konsultasi" })).toBeVisible()
   await expect(visitor.getByRole("link", { name: "WhatsApp" })).toHaveAttribute("href", "https://wa.me/6281234567890")
   // Judul tab datang dari data bisnis, bukan dari build.
   await expect(visitor).toHaveTitle(new RegExp(tagline))

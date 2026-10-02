@@ -113,7 +113,7 @@ export function BusinessForm({ profile, onChanged }: { profile: BusinessProfile;
           <form.Field name="industry">
             {(field) => (
               <FormField field={field} label="Bidang usaha" serverError={serverErrors.industry}>
-                <TextInput field={field} placeholder="Misalnya: Ritel pakaian" />
+                <TextInput field={field} placeholder="Misalnya: Perdagangan, jasa, atau manufaktur" />
               </FormField>
             )}
           </form.Field>
@@ -170,7 +170,7 @@ export function BusinessForm({ profile, onChanged }: { profile: BusinessProfile;
                 description="Nama yang tercetak di dokumen resmi, bila berbeda dari nama bisnis."
                 serverError={serverErrors.legal_name}
               >
-                <TextInput field={field} placeholder="Misalnya: PT Baju Sejahtera Makmur" />
+                <TextInput field={field} placeholder="Misalnya: PT Maju Bersama" />
               </FormField>
             )}
           </form.Field>
