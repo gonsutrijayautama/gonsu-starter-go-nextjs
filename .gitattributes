@@ -1,0 +1,7 @@
+# Akhir baris selalu LF, di sistem apa pun.
+#
+# Tanpa ini, Git for Windows mengubah berkas teks menjadi CRLF saat checkout,
+# dan skrip di scripts/ serta Makefile gagal dijalankan ("\r: command not
+# found") — juga di dalam image yang dibangun dari working tree itu. Berkas
+# biner dikenali sendiri dan tidak disentuh.
+* text=auto eol=lf
