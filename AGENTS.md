@@ -3,8 +3,8 @@
 <!-- gonsu-kit:begin -->
 > **Repository ini adalah STARTER KIT, bukan produk.** `gonsu new` menyalinnya
 > menjadi project produk dan mengganti identitas contohnya. Sebelum mengubah
-> apa pun di sini, baca `KIT.md`: aturan identitas contoh, tag `kit-v*`, dan
-> berkas yang hanya milik kit. Sisa berkas ini adalah instruksi yang akan
+> apa pun di sini, baca `KIT.md`: aturan identitas contoh, `main` yang selalu
+> siap dipakai, dan berkas yang hanya milik kit. Sisa berkas ini adalah instruksi yang akan
 > dibaca tim produk — sunting sebagai dokumen produk.
 <!-- gonsu-kit:end -->
 

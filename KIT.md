@@ -4,7 +4,7 @@
 hasil; `gonsu new` membuangnya.
 
 Repository ini adalah titik awal setiap produk GONSU ber-stack Go + Next.js.
-`gonsu new <kode-produk>` menyalin isinya pada satu tag, mengganti identitas
+`gonsu new <kode-produk>` menyalin isi `main`-nya, mengganti identitas
 contohnya dengan identitas produk, lalu menyiapkan git.
 
 Bedanya dengan template biasa: **ini aplikasi sungguhan**. Ia dapat dijalankan,
@@ -72,28 +72,36 @@ ini, `LICENSE` (lisensi kit; lisensi produk urusan tim produknya),
 `scripts/kit-check.sh`, `.github/workflows/kit.yml`, dan
 `.github/actionlint.yaml`.
 
-## Versi kit
+## `main` adalah yang dipakai
 
-- **Tag kit berawalan `kit-`**: `kit-v0.1.0`. JANGAN memakai tag `v*` di
-  repository ini — tag `v*` memicu `release.yml`, pipeline rilis produk.
-- `gonsu new` menarik tag yang dipin di katalog gonsu-cli. Sesudah memasang tag
-  baru, naikkan pin itu di gonsu-cli; sampai itu `gonsu new` tetap memberi
-  versi lama.
-- Project hasil mencatat asalnya di `.gonsu/kit.json` (kit, tag, commit).
-  Selisih dua tag kit adalah catatan naik versi bagi produk yang sudah
-  berjalan: `git diff kit-v0.1.0 kit-v0.2.0`.
+`gonsu new` selalu mengambil ujung `main` repository ini. Tidak ada pin versi
+dan tidak ada rilis: begitu sebuah perubahan masuk `main`, project berikutnya
+yang dibuat siapa pun sudah membawanya.
+
+- **`main` harus selalu siap dipakai.** Perubahan masuk lewat PR dengan CI
+  hijau, tidak didorong langsung. `main` yang rusak berarti project baru yang
+  rusak, sampai diperbaiki.
+- Project hasil mencatat asalnya di `.gonsu/kit.json` (kit dan commit-nya).
+  Selisih commit itu dengan `main` adalah catatan naik versi bagi produk yang
+  sudah berjalan: `git diff <commit> main`.
+- **Tag hanya penanda dan berawalan `kit-`**: `kit-v0.1.0`. Pasang saat ada
+  titik yang layak dirujuk. JANGAN memakai tag `v*` di repository ini — tag
+  `v*` memicu `release.yml`, pipeline rilis produk.
+  `gonsu new --kit-version kit-v0.1.0` mengambil keadaan pada tag itu.
 - Yang harus sama di SETIAP produk tidak hidup sebagai kode salinan di sini,
   melainkan di paket berversi: login dan lisensi di `gonsu-one-sdk-go`, modul
   standar di `gonsu-appkit-go`. Perbaikan di sana sampai ke produk lewat
   `go get`, tanpa menyalin apa pun.
 
-## Sebelum memasang tag
+## Sebelum menggabung ke `main`
 
-1. `make lint`, `make test`, `make e2e`, `make smoke` hijau.
+1. `make lint`, `make test`, `make e2e`, `make smoke` hijau — CI menjalankan
+   keempatnya di PR.
 2. `scripts/kit-check.sh` hijau.
 3. Coba dari sisi pemakai, dari folder lain:
    `gonsu new uji-kit --kit-source /path/ke/repository/ini`, lalu `make test`
-   di hasilnya.
+   di hasilnya. Cabang yang sudah didorong:
+   `gonsu new uji-kit --kit-version nama-cabang`.
 4. `README.md` dan `AGENTS.md` masih cocok dengan kodenya
    (`TestDocsReferToExistingCode`).
 
