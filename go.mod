@@ -5,7 +5,7 @@ go 1.27.1
 require (
 	github.com/go-chi/chi/v5 v5.3.2
 	// Modul standar GONSU: profil bisnis, media, dan wilayah (internal/modules).
-	github.com/gonsutrijayautama/gonsu-appkit-go v0.2.1-0.20261002031431-ab70cbd398f8
+	github.com/gonsutrijayautama/gonsu-appkit-go v0.3.0
 	// SDK GONSU: login, hak pakai, dan pemberian akses (paket auth dan kit web).
 	github.com/gonsutrijayautama/gonsu-one-sdk-go v1.2.0
 	github.com/google/uuid v1.6.0

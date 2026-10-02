@@ -56,8 +56,8 @@ github.com/go-sql-driver/mysql v1.10.0 h1:Q+1LV8DkHJvSYAdR83XzuhDaTykuDx0l6fkXxo
 github.com/go-sql-driver/mysql v1.10.0/go.mod h1:M+cqaI7+xxXGG9swrdeUIoPG3Y3KCkF0pZej+SK+nWk=
 github.com/golang/protobuf v1.5.4 h1:i7eJL8qZTpSEXOPTxNKhASYpMn+8e5Q6AdndVa1dWek=
 github.com/golang/protobuf v1.5.4/go.mod h1:lnTiLA8Wa4RWRcIUkrtSVa5nRhsEGBg48fD6rSs7xps=
-github.com/gonsutrijayautama/gonsu-appkit-go v0.2.1-0.20261002031431-ab70cbd398f8 h1:r3qWRx6fmE8siEXRGKE+UTmJfq7yhCH5vqBC60Fgspg=
-github.com/gonsutrijayautama/gonsu-appkit-go v0.2.1-0.20261002031431-ab70cbd398f8/go.mod h1:JvRIE5tcPnQr0ti1oiKpf3MqQvd7/PtR2twpccIUX+k=
+github.com/gonsutrijayautama/gonsu-appkit-go v0.3.0 h1:Kf499UrTUAZpN4dP7vEsBGc/UqrRQzd7BkRip34cO9k=
+github.com/gonsutrijayautama/gonsu-appkit-go v0.3.0/go.mod h1:JvRIE5tcPnQr0ti1oiKpf3MqQvd7/PtR2twpccIUX+k=
 github.com/gonsutrijayautama/gonsu-one-sdk-go v1.2.0 h1:FveyYIWN0exoZrebwpRckX0y1GmIZx6YPXbyEb7zkbE=
 github.com/gonsutrijayautama/gonsu-one-sdk-go v1.2.0/go.mod h1:trw/dMPwV3uXQqkbfM2zbQOy+r+pcSYFcxV/0dcGtCw=
 github.com/google/cel-go v0.28.0 h1:KjSWstCpz/MN5t4a8gnGJNIYUsJRpdi/r97xWDphIQc=
