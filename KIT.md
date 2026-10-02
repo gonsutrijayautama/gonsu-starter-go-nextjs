@@ -98,7 +98,10 @@ yang dibuat siapa pun sudah membawanya.
 1. `make lint`, `make test`, `make e2e`, `make smoke` hijau — CI menjalankan
    keempatnya di PR.
 2. `scripts/kit-check.sh` hijau.
-3. Coba dari sisi pemakai, dari folder lain:
+3. Job "gonsu new dari kit ini" hijau: CI memasang gonsu rilis terbaru,
+   menjalankan `gonsu new` terhadap PR itu, dan memastikan hasilnya
+   ter-compile tanpa sisa identitas contoh. Untuk perubahan besar, coba juga
+   sendiri dari folder lain:
    `gonsu new uji-kit --kit-source /path/ke/repository/ini`, lalu `make test`
    di hasilnya. Cabang yang sudah didorong:
    `gonsu new uji-kit --version nama-cabang`.
@@ -110,7 +113,10 @@ yang dibuat siapa pun sudah membawanya.
 - **Tanpa rahasia dan tanpa nilai milik satu pemasangan.** Kit hanya menyebut
   NAMA secret dan variabel; alamat server, domain, dan kredensial diisi tim
   produk di repository mereka.
-- **CI hanya memakai runner GitHub**, termasuk rilis. `release.yml` dipicu
+- **CI hanya memakai runner GitHub**, termasuk rilis, dengan versi yang
+  ditulis terang (`ubuntu-24.04`, sama dengan pipeline rilis GONSU) — bukan
+  `ubuntu-latest`, yang berpindah ke Ubuntu baru pada jadwal GitHub. Naik
+  versi runner adalah PR tersendiri. `release.yml` dipicu
   tag `v*` saja, dan tidak pernah berjalan di repository ini.
 - **Jangan menulis ulang yang dibawa SDK dan appkit**: login, lease, pemberian
   akses, profil bisnis, media, wilayah.

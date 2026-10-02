@@ -6,7 +6,9 @@
 # `make e2e`, atau `make smoke`, dan sebaliknya.
 #
 # Runner GitHub, bukan self-hosted: kode dari PR tidak boleh mendarat di mesin
-# milik sendiri.
+# milik sendiri. Versinya ditulis terang (ubuntu-24.04, sama dengan pipeline
+# rilis GONSU), bukan `ubuntu-latest`: label itu berpindah ke Ubuntu baru pada
+# jadwal GitHub, dan CI tidak boleh berubah tanpa PR.
 
 name: CI
 
@@ -26,7 +28,7 @@ permissions:
 jobs:
   go:
     name: Go
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     services:
       postgres:
@@ -89,7 +91,7 @@ jobs:
 
   web:
     name: Frontend
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -105,7 +107,7 @@ jobs:
   e2e:
     name: Uji ujung ke ujung
     needs: [go, web]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -130,7 +132,7 @@ jobs:
   image:
     name: Image rilis
     needs: [go, web]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     env:
       VERSION: 0.0.0-ci
