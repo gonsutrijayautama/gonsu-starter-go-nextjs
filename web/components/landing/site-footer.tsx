@@ -1,29 +1,26 @@
+"use client"
+
 import { product } from "@/lib/product"
-import { site } from "@/lib/site"
 import { Copyright } from "@/components/app-shell/copyright"
 
 import { SiteLogo } from "./decor"
+import { sectionLinks } from "./sections"
+import { useSite, useSiteName } from "./site-context"
 
-const columns = [
-  {
-    title: "Perusahaan",
-    links: [
-      { href: "#tentang", label: "Tentang kami" },
-      { href: "#layanan", label: "Layanan" },
-      { href: "#kontak", label: "Kontak" },
-    ],
-  },
-  {
-    // /auth/* dilayani server Go: <a>, bukan Link.
-    title: "Pengguna aplikasi",
-    links: [
-      { href: "/auth/login", label: "Masuk" },
-      { href: "/auth/gonsu/forgot-password", label: "Lupa sandi" },
-    ],
-  },
+// /auth/* dilayani server Go: <a>, bukan Link.
+const userLinks = [
+  { href: "/auth/login", title: "Masuk" },
+  { href: "/auth/gonsu/forgot-password", title: "Lupa sandi" },
 ]
 
 export function SiteFooter() {
+  const site = useSite()
+  const name = useSiteName()
+  const columns = [
+    { title: "Perusahaan", links: sectionLinks(site) },
+    { title: "Pengguna aplikasi", links: userLinks },
+  ].filter((column) => column.links.length > 0)
+
   return (
     <footer className="border-t">
       <div className="mx-auto flex max-w-6xl flex-col gap-10 px-4 py-12 sm:px-6">
@@ -31,9 +28,9 @@ export function SiteFooter() {
           <div className="flex max-w-xs flex-col gap-3">
             <div className="flex items-center gap-2.5 font-semibold tracking-tight">
               <SiteLogo />
-              {site.name}
+              {name}
             </div>
-            <p className="text-sm text-muted-foreground">{site.tagline}</p>
+            {site.tagline ? <p className="text-sm text-muted-foreground">{site.tagline}</p> : null}
           </div>
           <div className="grid grid-cols-2 gap-10 sm:gap-16">
             {columns.map((column) => (
@@ -41,7 +38,7 @@ export function SiteFooter() {
                 <p className="font-semibold">{column.title}</p>
                 {column.links.map((link) => (
                   <a key={link.href} href={link.href} className="text-muted-foreground hover:text-foreground">
-                    {link.label}
+                    {link.title}
                   </a>
                 ))}
               </nav>
@@ -49,7 +46,7 @@ export function SiteFooter() {
           </div>
         </div>
         <div className="flex flex-col gap-2 border-t pt-6 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
-          <Copyright holder={site.name} className="p-0" />
+          <Copyright holder={name} className="p-0" />
           <p>Aplikasi {product.name} berjalan di GONSU One</p>
         </div>
       </div>

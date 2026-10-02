@@ -26,6 +26,9 @@ const (
 	// bisnis). Membacanya tidak butuh izin: nama dan logo bisnis tampil untuk
 	// setiap pengguna.
 	SettingsBusinessManage Permission = "settings.business.manage"
+	// SettingsWebsiteManage: mengubah halaman depan publik — mode, isi,
+	// layanan, kanal, dan pratinjau tautannya (layar Website).
+	SettingsWebsiteManage Permission = "settings.website.manage"
 
 	// Modul contoh Catatan. Hapus bersama modulnya.
 	NotesRead  Permission = "notes.read"
@@ -48,6 +51,7 @@ var grants = map[Permission][]string{
 	SettingsUsersManage:      {RoleAdministrator},
 	SettingsSubscriptionView: {RoleAdministrator},
 	SettingsBusinessManage:   {RoleAdministrator},
+	SettingsWebsiteManage:    {RoleAdministrator},
 	NotesRead:                {RoleAdministrator, RoleStaff, RoleViewer},
 	NotesWrite:               {RoleAdministrator, RoleStaff},
 }

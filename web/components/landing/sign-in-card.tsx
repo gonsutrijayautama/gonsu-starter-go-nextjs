@@ -1,14 +1,18 @@
+"use client"
+
 import { InfoIcon, LogInIcon } from "lucide-react"
 import { cn } from "cn"
 
 import { product } from "@/lib/product"
-import { site } from "@/lib/site"
 import { BusinessAvatar } from "@/components/app-shell/generated-avatar"
 import { Frame, FrameFooter, FramePanel } from "@/components/reui/frame"
 import { buttonVariants } from "@/components/ui/button"
 
-/** Pintu masuk aplikasi untuk karyawan dan pengguna tenant. */
+import { useSiteName } from "./site-context"
+
+/** Pintu masuk aplikasi untuk karyawan dan pengguna bisnis ini. */
 export function SignInCard({ className }: { className?: string }) {
+  const name = useSiteName()
   return (
     <Frame className={cn("w-full max-w-sm bg-muted shadow-2xl", className)}>
       <FramePanel className="flex flex-col gap-4">
@@ -34,7 +38,7 @@ export function SignInCard({ className }: { className?: string }) {
       </FramePanel>
       <FrameFooter className="flex-row items-start gap-2 text-xs text-muted-foreground">
         <InfoIcon aria-hidden="true" className="mt-px size-3.5 shrink-0" />
-        <span>Belum punya akses? Minta administrator {site.name} memberi akses.</span>
+        <span>Belum punya akses? Minta administrator {name} memberi akses.</span>
       </FrameFooter>
     </Frame>
   )

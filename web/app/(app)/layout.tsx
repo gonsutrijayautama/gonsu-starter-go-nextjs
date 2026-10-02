@@ -1,4 +1,5 @@
 import { AppFrame } from "@/components/app-frame"
+import { BusinessProfileProvider } from "@/components/business-profile-context"
 import { SessionProvider } from "@/components/session-provider"
 
 // Area aplikasi: semua halaman di dalam (app) butuh sesi. Frontend ini static
@@ -7,7 +8,9 @@ import { SessionProvider } from "@/components/session-provider"
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <SessionProvider>
-      <AppFrame>{children}</AppFrame>
+      <BusinessProfileProvider>
+        <AppFrame>{children}</AppFrame>
+      </BusinessProfileProvider>
     </SessionProvider>
   )
 }

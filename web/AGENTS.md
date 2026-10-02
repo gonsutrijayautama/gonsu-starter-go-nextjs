@@ -33,16 +33,19 @@ string (`/invoices/detail/?id=…`) dan membaca `useSearchParams` di dalam
 
 | Path | Isi |
 |---|---|
-| `app/page.tsx` | halaman publik `/`: web perusahaan tenant sekaligus pintu Masuk — juga probe chart GONSU, jangan memanggil API di sini |
+| `app/page.tsx` | halaman publik `/`: web perusahaan bisnis ini atau hanya pintu Masuk, menurut pengaturan Website — juga probe chart GONSU, jangan memanggil API di sini |
 | `app/sign-in/` | `/sign-in/?error=<sebab>` saat login gagal |
 | `app/not-found.tsx` | halaman 404 |
 | `app/(app)/layout.tsx` | area aplikasi: sesi lalu kerangka (`AppFrame`) |
 | `app/(app)/loading.tsx`, `error.tsx` | memuat dan galat untuk semua rute di area aplikasi |
 | `app/(app)/<route>/page.tsx` | halaman: metadata judul, lalu satu komponen layar |
 | `app/(app)/notes/` | **layar contoh Catatan** — pola yang ditiru setiap layar baru |
-| `app/(app)/settings/` | Profil bisnis, Pengguna & Akses, Lisensi |
+| `app/(app)/settings/` | Profil bisnis, Website, Pengguna & Akses, Lisensi |
 | `app/(app)/settings/business/` | layar Profil bisnis: formulir satu halaman (bukan dialog), unggah logo, tampilan baca untuk role tanpa izin |
-| `lib/site.ts` | isi halaman `/`: nama tenant, layanan, kontak. SDK GONSU belum membawa profil organisasi, jadi isinya ditulis di sini |
+| `app/(app)/settings/website/` | layar Website: mode halaman depan, isi, layanan (daftar yang bisa ditambah dan dihapus), kanal, pratinjau tautan |
+| `lib/site.ts` | data halaman `/` (`Site`): dibaca dari JSON yang disisipkan server Go, atau dari `/site.json` saat `make web-dev` |
+| `lib/site-icons.tsx` | ikon layanan; namanya sama dengan daftar di server |
+| `lib/website.ts` | pengaturan website (`/v1/website`) |
 | `lib/navigation.tsx` | menu sidebar, izinnya, dan label breadcrumb |
 | `lib/api.ts` | satu-satunya jalan ke server: `api()`, `ApiError`, `newIdempotencyKey()` |
 | `lib/toast-action.tsx` | `runWithToast()` untuk setiap aksi ke server |
@@ -53,21 +56,24 @@ string (`/invoices/detail/?id=…`) dan membaca `useSearchParams` di dalam
 | `components/session-context.tsx` | `useSession()`, `useCan()`, dan `usePortal()` (tautan Portal boleh tampil) |
 | `hooks/use-resource.ts` | membaca GET dengan `reload()` sesudah mutasi |
 | `hooks/use-api-form.ts` | formulir: TanStack Form + Zod + toast + galat server per isian |
-| `hooks/use-file-upload.ts` | hook unggah berkas ReUI (vendor) — dipakai `logo-field.tsx` |
+| `hooks/use-file-upload.ts` | hook unggah berkas ReUI (vendor) — dipakai `components/image-field.tsx` |
+| `components/image-field.tsx` | `ImageField`: ganti dan hapus satu gambar (logo, foto), langsung diunggah |
+| `components/form-controls.tsx` | `TextInput`, `TextArea`, `FormSection`, `FormFooter` untuk formulir satu halaman |
+| `components/business-profile-context.tsx` | `useBusinessProfile()`: profil bisnis untuk sidebar dan layar Profil bisnis |
 | `components/region-picker.tsx` | `RegionPicker`: pilih desa, kecamatan, atau kota dari pencarian server |
-| `components/landing/` | bagian halaman `/`: header dengan mega menu, hero dan kartu Masuk, layanan, kontak, kaki |
+| `components/landing/` | halaman `/`: `home.tsx` memilih web perusahaan atau pintu masuk; `site-context.tsx` (`SiteGate`, `useSite()`) menyediakan datanya; sisanya bagian-bagiannya |
 | `components/app-shell/` | kerangka: sidebar, header, breadcrumb, menu akun, tema, `PageLoading`, `ConfirmAction` |
 | `components/` | pola halaman: `PageHeader`, `DataTable`, `ApiForm`, `FormField`, `ApiFailure` |
 | `components/ui/`, `components/reui/` | seluruh komponen shadcn dan 22 komponen ReUI — vendor, jangan disunting tangan |
 | `app/globals.css` | token warna; mengganti warna produk cukup di sini |
 | `docs/ui-guide.md` | **panduan UI yang mengikat** |
-| `e2e/` | uji peramban Playwright (`e2e/notes.spec.ts`, `e2e/business-profile.spec.ts`); server-nya disiapkan `make e2e` di akar |
+| `e2e/` | uji peramban Playwright (`e2e/notes.spec.ts`, `e2e/business-profile.spec.ts`, `e2e/website.spec.ts`); server-nya disiapkan `make e2e` di akar |
 
 ## Perintah
 
 ```sh
 make run        # (di akar project) server Go build dev di 127.0.0.1:18080
-make web-dev    # (di akar project) http://localhost:3000, /v1 dan /auth diteruskan ke make run
+make web-dev    # (di akar project) http://localhost:3000; /v1, /auth, /media, /site.json diteruskan ke make run
 make -C web lint    # eslint + aturan panduan UI, typecheck, judul halaman
 make -C web build   # static export ke out/
 make e2e            # (di akar project) uji peramban di e2e/ terhadap server build dev
@@ -124,8 +130,15 @@ akar). Tiru `app/(app)/notes/` berkas demi berkas.
 - **Izin di layar hanya kenyamanan**: server tetap menolak.
 - **Alamat memakai `RegionPicker`**, bukan kolom kota yang diketik bebas:
   yang disimpan kode wilayahnya, dan kode pos terisi dari desa terpilih.
-- **Nama dan logo bisnis** dibaca dari `/v1/business-profile`, tidak ditulis
-  di kode layar.
+- **Nama dan logo bisnis** dibaca dari `useBusinessProfile()` di area
+  aplikasi dan dari `useSite()` di halaman depan, tidak ditulis di kode layar.
+- **Halaman depan hanya menampilkan yang diisi.** Bagian, menu, dan tombol
+  yang datanya kosong tidak dirender (`components/landing/sections.ts`); tidak
+  ada teks tempat isian di halaman publik.
+- **Gambar memakai `ImageField`**, dan formulir satu halaman memakai
+  `FormSection` di dalam SATU `Frame`. Formulir yang menyunting data bersama
+  mengirim `version` data yang dibacanya, dan dipasang ulang dengan
+  `key={data.version}`.
 - **Font disimpan di `fonts/`**; jangan kembali ke `next/font/google`.
 - **Memasang komponen**: `bunx shadcn@latest add <nama>` atau
   `bunx shadcn@latest add @reui/<nama>`. Registry ReUI membatasi permintaan

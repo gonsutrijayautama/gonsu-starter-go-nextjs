@@ -48,10 +48,15 @@ export type BusinessProfile = {
   /** Alamat lengkap satu baris: jalan, wilayah, kode pos. */
   address_text: string
   logo: MediaFile | null
+  /** Dikirim balik saat menyimpan; simpan dengan version lama ditolak (409). */
+  version: number
   updated_at: string | null
 }
 
-/** Body PUT: SELURUH isian dikirim; yang kosong menjadi kosong. */
+/**
+ * Body PUT: SELURUH isian dikirim; yang kosong menjadi kosong. `version`
+ * adalah version profil yang sedang disunting.
+ */
 export type BusinessProfileInput = Pick<
   BusinessProfile,
   | "display_name"
@@ -64,13 +69,14 @@ export type BusinessProfileInput = Pick<
   | "address"
   | "region_code"
   | "postcode"
+  | "version"
 >
 
 export const businessProfilePath = "/v1/business-profile"
 
-/** Batas dan jenis berkas logo, sama dengan server. */
-export const logoMaxBytes = 2 * 1024 * 1024
-export const logoAccept = "image/png,image/jpeg,image/webp"
+/** Batas dan jenis berkas gambar (modul media), sama dengan server. */
+export const imageMaxBytes = 2 * 1024 * 1024
+export const imageAccept = "image/png,image/jpeg,image/webp"
 
 export const businessTypeLabel: Record<Exclude<BusinessType, "">, string> = {
   individual: "Perorangan",

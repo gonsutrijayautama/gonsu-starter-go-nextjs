@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net/http"
 	"path"
+	"strconv"
 	"strings"
 
 	"github.com/gonsutrijayautama/gonsu-starter-go-nextjs/internal/apperr"
@@ -35,9 +36,12 @@ var fallbackPage = template.Must(template.New("fallback").Parse(`<!doctype html>
 </html>
 `))
 
-// frontendHandler menyajikan hasil static export Next.js.
-func frontendHandler(frontend fs.FS, version string, logger *slog.Logger) http.Handler {
-	hasIndex := exists(frontend, "index.html")
+// frontendHandler menyajikan hasil static export Next.js. home, bila ada,
+// mengolah halaman depan sebelum disajikan.
+func frontendHandler(frontend fs.FS, version string, home func(*http.Request, []byte) []byte, logger *slog.Logger) http.Handler {
+	// Halaman depan dibaca sekali: isinya tidak berubah selama proses hidup.
+	index, err := fs.ReadFile(frontend, "index.html")
+	hasIndex := err == nil
 	if !hasIndex {
 		logger.Warn("frontend belum di-build: \"/\" menyajikan halaman cadangan (jalankan `make web`)")
 	}
@@ -48,6 +52,19 @@ func frontendHandler(frontend fs.FS, version string, logger *slog.Logger) http.H
 		if r.URL.Path == "/" && !hasIndex {
 			w.Header().Set("Content-Type", "text/html; charset=utf-8")
 			_ = fallbackPage.Execute(w, struct{ Version string }{version})
+			return
+		}
+		if r.URL.Path == "/" && home != nil {
+			page := home(r, index)
+			h := w.Header()
+			h.Set("Content-Type", "text/html; charset=utf-8")
+			// Isinya memuat data bisnis yang dapat berubah kapan saja; berkas
+			// di _next/static yang dirujuknya tetap disimpan peramban.
+			h.Set("Cache-Control", "no-cache")
+			h.Set("Content-Length", strconv.Itoa(len(page)))
+			if r.Method != http.MethodHead {
+				_, _ = w.Write(page)
+			}
 			return
 		}
 		if !servable(frontend, r.URL.Path) {

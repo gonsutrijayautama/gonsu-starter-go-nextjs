@@ -4,6 +4,7 @@ export const Permission = {
   SettingsUsersManage: "settings.users.manage",
   SettingsSubscriptionView: "settings.subscription.view",
   SettingsBusinessManage: "settings.business.manage",
+  SettingsWebsiteManage: "settings.website.manage",
   NotesRead: "notes.read",
   NotesWrite: "notes.write",
 } as const

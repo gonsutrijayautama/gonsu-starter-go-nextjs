@@ -6,9 +6,10 @@ import { PHASE_DEVELOPMENT_SERVER } from "next/constants"
 // server actions, proxy — tidak tersedia di sana; login dan izin ditegakkan Go.
 export default function config(phase: string): NextConfig {
   if (phase === PHASE_DEVELOPMENT_SERVER) {
-    // `make web-dev`: /v1 dan /auth diteruskan ke server Go (`make run`),
-    // supaya halaman memanggil API dari origin yang sama persis seperti di
-    // rilis. Rewrites hanya ada di sini — static export tidak mendukungnya.
+    // `make web-dev`: /v1, /auth, /media, dan /site.json diteruskan ke server
+    // Go (`make run`), supaya halaman memanggil API dari origin yang sama
+    // persis seperti di rilis. Rewrites hanya ada di sini — static export
+    // tidak mendukungnya.
     const api = process.env.API_ORIGIN ?? "http://127.0.0.1:18080"
     return {
       trailingSlash: true,
@@ -19,6 +20,9 @@ export default function config(phase: string): NextConfig {
         return [
           { source: "/v1/:path*", destination: `${api}/v1/:path*` },
           { source: "/auth/:path*", destination: `${api}/auth/:path*` },
+          // Berkas publik (logo) dan data halaman depan, keduanya tanpa sesi.
+          { source: "/media/:path*", destination: `${api}/media/:path*` },
+          { source: "/site.json", destination: `${api}/site.json` },
         ]
       },
     }

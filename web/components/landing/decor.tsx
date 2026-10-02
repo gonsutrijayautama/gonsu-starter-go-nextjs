@@ -1,9 +1,11 @@
+"use client"
+
 import Image from "next/image"
-import { ImageIcon } from "lucide-react"
 import { cn } from "cn"
 
-import { site } from "@/lib/site"
 import { BusinessAvatar } from "@/components/app-shell/generated-avatar"
+
+import { useSite, useSiteName } from "./site-context"
 
 /** Garis kisi tipis dari token --border. Bentuk pudarnya diatur mask di className. */
 export function GridPattern({ className }: { className?: string }) {
@@ -18,12 +20,14 @@ export function GridPattern({ className }: { className?: string }) {
   )
 }
 
-/** Logo tenant: berkas `site.logo`, atau avatar bisnis dari namanya. */
+/** Logo bisnis dari profilnya, atau avatar bisnis dari namanya. */
 export function SiteLogo({ className }: { className?: string }) {
-  if (site.logo) {
+  const site = useSite()
+  const name = useSiteName()
+  if (site.logo_url) {
     return (
       <Image
-        src={site.logo}
+        src={site.logo_url}
         alt=""
         width={32}
         height={32}
@@ -32,30 +36,21 @@ export function SiteLogo({ className }: { className?: string }) {
       />
     )
   }
-  return <BusinessAvatar seed={site.name} name={site.name} className={cn("size-8", className)} />
+  return <BusinessAvatar seed={name} name={name} className={cn("size-8", className)} />
 }
 
 /**
- * Foto perusahaan dari `site.about.image`. Selama belum diisi, bidangnya
- * menandai tempat foto — bukan gambar stok yang pura-pura milik tenant.
+ * Foto "Tentang kami" dari pengaturan website. Tidak dirender selama belum
+ * ada fotonya: bidang kosong di halaman publik terbaca sebagai halaman yang
+ * belum jadi.
  */
-export function SitePhoto({ label, className }: { label: string; className?: string }) {
-  if (site.about.image) {
-    return (
-      <div className={cn("relative overflow-hidden", className)}>
-        <Image src={site.about.image} alt={`Foto ${site.name}`} fill unoptimized className="object-cover" />
-      </div>
-    )
-  }
+export function SitePhoto({ className }: { className?: string }) {
+  const site = useSite()
+  const name = useSiteName()
+  if (!site.about.image_url) return null
   return (
-    <div
-      className={cn(
-        "flex flex-col items-center justify-center gap-2 bg-muted/70 bg-[repeating-linear-gradient(45deg,var(--border)_0_1px,transparent_1px_12px)] text-sm text-muted-foreground",
-        className,
-      )}
-    >
-      <ImageIcon aria-hidden="true" className="size-6" />
-      {label}
+    <div className={cn("relative overflow-hidden", className)}>
+      <Image src={site.about.image_url} alt={`Foto ${name}`} fill unoptimized className="object-cover" />
     </div>
   )
 }

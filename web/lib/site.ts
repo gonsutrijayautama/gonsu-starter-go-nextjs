@@ -1,80 +1,110 @@
-import { ChartLineIcon, HeadsetIcon, PackageIcon, WrenchIcon, type LucideIcon } from "lucide-react"
+import { api } from "@/lib/api"
 
-/**
- * Isi web perusahaan di "/": identitas tenant, layanan, dan kontak.
- *
- * Satu pemasangan melayani satu tenant, tetapi SDK GONSU belum membawa profil
- * organisasi (nama, alamat, logo). Sampai ada, isinya ditulis di sini dan ikut
- * di-build. Penggantinya nanti tetap harus tersedia tanpa sesi dan tanpa API:
- * "/" adalah probe chart GONSU.
- *
- * Teks dalam kurung siku adalah tempat yang wajib diisi.
- */
-export interface SiteContent {
-  /** Nama perusahaan: di header, kaki halaman, dan judul tab "/". */
+// Halaman depan "/": identitas bisnis dan isi web perusahaannya. Datanya
+// milik modul standar GONSU (library gonsu-appkit-go, website) — gabungan
+// profil bisnis dan pengaturan website yang sudah disaring untuk pengunjung.
+//
+// Server Go menyisipkannya ke halaman depan sebagai JSON (`siteDataId`),
+// jadi halaman tidak memanggil API untuk menampilkan identitas bisnis.
+
+export type SiteMode = "signin" | "site"
+
+/** Satu layanan. `icon` adalah nama dari `lib/site-icons.tsx`. */
+export type SiteService = { title: string; description: string; icon: string }
+
+/** Kanal lain bisnisnya, sudah berupa tautan siap pakai. Kosong: tidak ada. */
+export type SiteChannels = {
+  whatsapp: string
+  instagram: string
+  facebook: string
+  tiktok: string
+  youtube: string
+  linkedin: string
+}
+
+/** Yang boleh dilihat pengunjung tanpa akun, seperti dijawab /site.json. */
+export type Site = {
+  /** "signin": hanya pintu masuk; isi lain kosong. "site": web perusahaan. */
+  mode: SiteMode
+  /** Kosong bila profil bisnis belum diisi. */
   name: string
-  /** Logo di public/, misalnya "/logo.svg". Kosong: avatar bisnis dari nama. */
-  logo?: string
-  /** Bidang usaha dan kota, tampil di atas judul. */
   industry: string
-  /** Satu-dua kalimat tentang perusahaan, di atas daftar layanan. */
-  summary: string
-  /** Satu kalimat pendek di kaki halaman. */
+  logo_url: string
   tagline: string
-  about: {
-    text: string
-    /** Foto di public/. Kosong: bidang foto menampilkan tempatnya saja. */
-    image?: string
-  }
+  summary: string
+  about: { text: string; image_url: string }
   services: SiteService[]
   contact: {
+    /** Kosong bila alamat disembunyikan. */
     address: string
     city: string
-    /** Ditulis seperti yang dibaca orang; tautan tel: dibuat darinya. */
-    phone: string
     email: string
+    phone: string
     hours: string
-    /** Tautan peta (Google Maps dan sejenisnya). Kosong: tombol peta disembunyikan. */
-    mapUrl?: string
+    map_url: string
+  }
+  channels: SiteChannels
+  seo: { title: string; description: string; image_url: string }
+}
+
+/** Id elemen <script type="application/json"> yang disisipkan server Go. */
+export const siteDataId = "gonsu-site"
+
+export const sitePath = "/site.json"
+
+/** Halaman depan tanpa data bisnis: hanya pintu masuk. */
+export const emptySite: Site = {
+  mode: "signin",
+  name: "",
+  industry: "",
+  logo_url: "",
+  tagline: "",
+  summary: "",
+  about: { text: "", image_url: "" },
+  services: [],
+  contact: { address: "", city: "", email: "", phone: "", hours: "", map_url: "" },
+  channels: { whatsapp: "", instagram: "", facebook: "", tiktok: "", youtube: "", linkedin: "" },
+  seo: { title: "", description: "", image_url: "" },
+}
+
+/**
+ * Data yang disisipkan server ke halaman ini. null bila halamannya tidak
+ * disajikan server Go — `make web-dev` — atau isinya tidak terbaca.
+ */
+export function readInjectedSite(): Site | null {
+  const raw = document.getElementById(siteDataId)?.textContent
+  if (!raw) return null
+  try {
+    return JSON.parse(raw) as Site
+  } catch {
+    return null
   }
 }
 
-export interface SiteService {
-  title: string
-  description: string
-  icon: LucideIcon
+/** Data yang sama lewat jaringan, untuk halaman yang tidak disisipi server. */
+export function fetchSite(signal?: AbortSignal) {
+  return api<Site>(sitePath, { signal })
 }
 
-export const site: SiteContent = {
-  name: "[Nama Perusahaan]",
-  industry: "[Bidang usaha]",
-  summary: "[Satu-dua kalimat tentang perusahaan: sejak kapan berdiri, melayani siapa, dan di mana.]",
-  tagline: "[Tagline singkat perusahaan.]",
-  about: {
-    text: "[Cerita singkat perusahaan: nilai yang dipegang, dan apa yang membuat Anda berbeda.]",
-  },
-  services: [
-    { title: "[Nama layanan 1]", description: "[Satu kalimat: apa yang didapat pelanggan dari layanan ini.]", icon: PackageIcon },
-    { title: "[Nama layanan 2]", description: "[Satu kalimat: apa yang didapat pelanggan dari layanan ini.]", icon: ChartLineIcon },
-    { title: "[Nama layanan 3]", description: "[Satu kalimat: apa yang didapat pelanggan dari layanan ini.]", icon: WrenchIcon },
-    { title: "[Nama layanan 4]", description: "[Satu kalimat: apa yang didapat pelanggan dari layanan ini.]", icon: HeadsetIcon },
-  ],
-  contact: {
-    address: "[Alamat lengkap kantor]",
-    city: "[Kota, Provinsi]",
-    phone: "[Nomor telepon]",
-    email: "[email@perusahaan.co.id]",
-    hours: "[Hari dan jam kerja]",
-  },
-}
-
-/** Tautan tel: dari nomor yang ditulis bebas; undefined bila belum berupa nomor. */
+/** Tautan tel: dari nomor yang ditulis bebas; undefined bila bukan nomor. */
 export function phoneHref(phone: string): string | undefined {
   const digits = phone.replace(/[\s().-]/g, "")
   return /^\+?\d{6,15}$/.test(digits) ? `tel:${digits}` : undefined
 }
 
-/** Tautan mailto:; undefined bila belum berupa alamat email. */
+/** Tautan mailto:; undefined bila bukan alamat email. */
 export function emailHref(email: string): string | undefined {
   return /^[^\s@[\]]+@[^\s@[\]]+\.[^\s@[\]]+$/.test(email) ? `mailto:${email}` : undefined
+}
+
+/** Kanal yang diisi, urut seperti ditampilkan. */
+export function channelLinks(channels: SiteChannels): { label: string; href: string }[] {
+  return [
+    { label: "WhatsApp", href: channels.whatsapp },
+    { label: "Instagram", href: channels.instagram },
+    { label: "Facebook", href: channels.facebook },
+    { label: "TikTok", href: channels.tiktok },
+    { label: "YouTube", href: channels.youtube },
+    { label: "LinkedIn", href: channels.linkedin },
+  ].filter((channel) => channel.href)
 }

@@ -255,8 +255,10 @@ halaman (`/invoices/detail/?id=…`). Isi sheet dirender hanya saat terbuka.
 
 ## 7. Unggah berkas
 
-Hook `useFileUpload` (`hooks/use-file-upload.ts`, dari registry ReUI) sudah
-terpasang; contoh pakainya `app/(app)/settings/business/logo-field.tsx`.
+Satu gambar (logo, foto) memakai `ImageField` (`components/image-field.tsx`):
+tombol unggah, ganti, dan hapus dengan konfirmasi, langsung diunggah begitu
+dipilih. Di bawahnya hook `useFileUpload` (`hooks/use-file-upload.ts`, dari
+registry ReUI).
 Bentuk lain (drag-drop, banyak berkas) diambil dari contoh registry
 `@reui/c-file-upload-1` sampai `-4`. Jangan menulis drag-drop atau validasi
 tipe sendiri.

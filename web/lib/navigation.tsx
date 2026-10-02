@@ -1,4 +1,4 @@
-import { Building2Icon, KeyRoundIcon, LayoutDashboardIcon, NotebookPenIcon, UsersIcon } from "lucide-react"
+import { Building2Icon, GlobeIcon, KeyRoundIcon, LayoutDashboardIcon, NotebookPenIcon, UsersIcon } from "lucide-react"
 
 import type { AppSidebarSection } from "@/components/app-shell/app-sidebar"
 import type { NavItem } from "@/components/app-shell/nav-main"
@@ -50,6 +50,13 @@ export const sections: AppSection[] = [
             icon: <Building2Icon />,
             description: "Nama, kontak, alamat, dan logo bisnis Anda.",
           },
+          {
+            title: "Website",
+            url: "/settings/website/",
+            icon: <GlobeIcon />,
+            permission: Permission.SettingsWebsiteManage,
+            description: "Halaman depan publik: layanan, kanal, dan tampilannya saat dibagikan.",
+          },
         ],
       },
       {
@@ -85,6 +92,7 @@ export const breadcrumbLabels: Record<string, string> = {
   notes: "Catatan",
   settings: "Pengaturan",
   business: "Profil bisnis",
+  website: "Website",
   users: "Pengguna & Akses",
   license: "Lisensi",
 }

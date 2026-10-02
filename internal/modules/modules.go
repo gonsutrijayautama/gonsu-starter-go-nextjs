@@ -1,5 +1,5 @@
 // Package modules memasang modul standar GONSU dari library
-// `gonsu-appkit-go`: profil bisnis, media, dan wilayah.
+// `gonsu-appkit-go`: profil bisnis, website, media, dan wilayah.
 //
 // Kode modulnya ada di library dan SAMA di setiap produk; ia di-upgrade
 // dengan `go get`, tidak disunting di sini. Yang milik produk ini hanya
@@ -21,12 +21,14 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	appkit "github.com/gonsutrijayautama/gonsu-appkit-go"
 	"github.com/gonsutrijayautama/gonsu-appkit-go/businessprofile"
 	"github.com/gonsutrijayautama/gonsu-appkit-go/media"
 	"github.com/gonsutrijayautama/gonsu-appkit-go/regions"
+	"github.com/gonsutrijayautama/gonsu-appkit-go/website"
 
 	"github.com/gonsutrijayautama/gonsu-starter-go-nextjs/internal/apperr"
 	"github.com/gonsutrijayautama/gonsu-starter-go-nextjs/internal/authn"
@@ -40,6 +42,7 @@ import (
 // karena library-nya di-upgrade.
 var permissions = map[appkit.Permission]authz.Permission{
 	businessprofile.Manage: authz.SettingsBusinessManage,
+	website.Manage:         authz.SettingsWebsiteManage,
 }
 
 // Standard adalah modul standar yang terpasang di produk ini.
@@ -47,15 +50,19 @@ type Standard struct {
 	// Profiles dipakai modul lain yang butuh identitas bisnis, mis. kepala
 	// dokumen yang dicetak: `Profiles.Lookup(ctx, org)`.
 	Profiles *businessprofile.Service
-	// Media menyimpan berkas PUBLIK (logo). Lihat dokumentasi package media
-	// sebelum menyimpan berkas lain di sana.
+	// Sites mengatur halaman depan publik dan menyisipkan datanya ke "/".
+	Sites *website.Service
+	// Media menyimpan berkas PUBLIK (logo, gambar halaman depan). Lihat
+	// dokumentasi package media sebelum menyimpan berkas lain di sana.
 	Media *media.Service
 
 	regions []appkit.Route
 }
 
-// New menyiapkan modul standar. Dipanggil sekali saat start.
-func New(pool *pgxpool.Pool, logger *slog.Logger) (*Standard, error) {
+// New menyiapkan modul standar. Dipanggil sekali saat start. installation
+// adalah organization pemasangan ini: satu pemasangan melayani satu
+// organization, dan dialah pemilik halaman depan yang dibuka tanpa sesi.
+func New(pool *pgxpool.Pool, installation uuid.UUID, logger *slog.Logger) (*Standard, error) {
 	hooks := appkit.Hooks{
 		Organization: tenant.OrganizationID,
 		Authorize:    authorize,
@@ -71,33 +78,54 @@ func New(pool *pgxpool.Pool, logger *slog.Logger) (*Standard, error) {
 	if err != nil {
 		return nil, err
 	}
+	sites, err := website.New(pool, profiles, files, hooks, website.Options{
+		PublicOrganization: func(*http.Request) (uuid.UUID, error) { return installation, nil },
+		Logger:             logger,
+	})
+	if err != nil {
+		return nil, err
+	}
 	regionRoutes, err := regions.Routes(hooks)
 	if err != nil {
 		return nil, err
 	}
-	return &Standard{Profiles: profiles, Media: files, regions: regionRoutes}, nil
+	return &Standard{Profiles: profiles, Sites: sites, Media: files, regions: regionRoutes}, nil
 }
 
 // Routes memasang endpoint modul standar di bawah /v1, di balik sesi:
 //
 //	GET    /business-profile
-//	PUT    /business-profile        izin settings.business.manage
-//	PUT    /business-profile/logo   izin settings.business.manage
-//	DELETE /business-profile/logo   izin settings.business.manage
-//	GET    /regions                 ?parent=
-//	GET    /regions/search          ?q=&limit=
+//	PUT    /business-profile          izin settings.business.manage
+//	PUT    /business-profile/logo     izin settings.business.manage
+//	DELETE /business-profile/logo     izin settings.business.manage
+//	GET    /website
+//	PUT    /website                   izin settings.website.manage
+//	PUT    /website/images/{slot}     izin settings.website.manage
+//	DELETE /website/images/{slot}     izin settings.website.manage
+//	GET    /regions                   ?parent=
+//	GET    /regions/search            ?q=&limit=
 func (s *Standard) Routes(r chi.Router) {
 	mount(r, s.Profiles.Routes())
+	mount(r, s.Sites.Routes())
 	mount(r, s.regions)
 }
 
 // PublicRoutes memasang endpoint TANPA SESI di akar situs:
 //
-//	GET /media/{id}
+//	GET /media/{id}    berkas publik
+//	GET /site.json     tampilan publik halaman depan
 //
-// Logo tampil di halaman depan dan halaman masuk, sebelum ada yang login.
+// Logo dan halaman depan tampil sebelum ada yang login.
 func (s *Standard) PublicRoutes(r chi.Router) {
 	mount(r, s.Media.PublicRoutes())
+	mount(r, s.Sites.PublicRoutes())
+}
+
+// RenderHome menyisipkan identitas bisnis ke halaman depan sebelum disajikan
+// (`httpx.Options.Home`). Tidak pernah gagal: tanpa data, halaman
+// dikembalikan apa adanya.
+func (s *Standard) RenderHome(r *http.Request, page []byte) []byte {
+	return s.Sites.RenderHome(r, page)
 }
 
 func mount(r chi.Router, routes []appkit.Route) {
@@ -131,6 +159,8 @@ func translate(err error) error {
 		return apperr.Validation(e.Message, details...)
 	case appkit.KindNotFound:
 		return apperr.NotFound(e.Message)
+	case appkit.KindConflict:
+		return apperr.ConcurrentModification(e.Message)
 	}
 	// Jenis galat yang belum dikenal produk ini: perlakukan sebagai galat tak
 	// terduga, jangan menebak status HTTP-nya.

@@ -147,6 +147,45 @@ func TestNotFound(t *testing.T) {
 	})
 }
 
+// Home mengolah halaman depan sebelum disajikan — dan hanya halaman depan.
+func TestHomeHookRendersIndex(t *testing.T) {
+	h := NewRouter(Options{
+		Version: "1.2.3", Frontend: builtFrontend(), Logger: discard,
+		Home: func(_ *http.Request, page []byte) []byte {
+			return append([]byte("<!-- bisnis -->"), page...)
+		},
+	})
+	get := func(method, path string) *http.Response {
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, httptest.NewRequest(method, path, nil))
+		return rec.Result()
+	}
+
+	resp := get(http.MethodGet, "/")
+	body, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != http.StatusOK || !strings.HasPrefix(string(body), "<!-- bisnis -->") || !strings.Contains(string(body), "landing") {
+		t.Errorf("GET / = %d %q", resp.StatusCode, body)
+	}
+	// Isinya dapat berubah kapan saja, jadi tidak disimpan peramban.
+	if got := resp.Header.Get("Cache-Control"); got != "no-cache" {
+		t.Errorf("Cache-Control halaman depan = %q", got)
+	}
+
+	// HEAD: status dan panjang yang sama, tanpa isi — probe boleh memakainya.
+	head := get(http.MethodHead, "/")
+	headBody, _ := io.ReadAll(head.Body)
+	if head.StatusCode != http.StatusOK || len(headBody) != 0 || head.Header.Get("Content-Length") != resp.Header.Get("Content-Length") {
+		t.Errorf("HEAD / = %d, %d byte, Content-Length %q", head.StatusCode, len(headBody), head.Header.Get("Content-Length"))
+	}
+
+	// Halaman lain tidak diolah.
+	other := get(http.MethodGet, "/notes/")
+	otherBody, _ := io.ReadAll(other.Body)
+	if strings.Contains(string(otherBody), "<!-- bisnis -->") {
+		t.Errorf("halaman selain / ikut diolah: %q", otherBody)
+	}
+}
+
 func TestMutatingMethodOnFrontendIsNotAllowed(t *testing.T) {
 	resp := serve(t, builtFrontend(), http.MethodPost, "/", nil)
 	if resp.StatusCode != http.StatusMethodNotAllowed {

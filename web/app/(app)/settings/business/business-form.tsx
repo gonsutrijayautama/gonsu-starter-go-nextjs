@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, type ComponentProps, type ReactNode } from "react"
+import { useState } from "react"
 import { z } from "zod"
 
 import { useApiForm } from "@/hooks/use-api-form"
@@ -11,13 +11,11 @@ import {
   type BusinessType,
 } from "@/lib/business-profile"
 import { ApiForm } from "@/components/api-form"
-import { FormField, type ValidatedField } from "@/components/form-field"
+import { FormFooter, FormSection, TextArea, TextInput } from "@/components/form-controls"
+import { FormField } from "@/components/form-field"
 import { RegionPicker, type RegionOption } from "@/components/region-picker"
 import { Frame, FrameDescription, FrameHeader, FramePanel, FrameTitle } from "@/components/reui/frame"
-import { FieldGroup, FieldLegend, FieldSet } from "@/components/ui/field"
-import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Textarea } from "@/components/ui/textarea"
 import { LogoField } from "./logo-field"
 
 // Aturan yang SAMA dengan server (library gonsu-appkit-go, businessprofile).
@@ -62,42 +60,6 @@ const businessTypes = [
   { value: "company", label: businessTypeLabel.company },
 ]
 
-/** Field TanStack Form berisi teks, sebatas yang dibutuhkan isian di sini. */
-interface TextField extends ValidatedField {
-  state: ValidatedField["state"] & { value: string }
-  handleBlur: () => void
-  handleChange: (value: string) => void
-}
-
-function fieldProps(field: TextField) {
-  return {
-    id: field.name,
-    name: field.name,
-    value: field.state.value,
-    onBlur: field.handleBlur,
-    "aria-invalid": field.state.meta.isTouched && !field.state.meta.isValid,
-  }
-}
-
-function TextInput({ field, ...props }: { field: TextField } & ComponentProps<typeof Input>) {
-  return <Input {...fieldProps(field)} onChange={(event) => field.handleChange(event.target.value)} {...props} />
-}
-
-function Section({ title, children }: { title: string; children: ReactNode }) {
-  return (
-    <FramePanel>
-      <FieldSet>
-        <FieldLegend>{title}</FieldLegend>
-        <FieldGroup>{children}</FieldGroup>
-      </FieldSet>
-    </FramePanel>
-  )
-}
-
-function FormFooter({ children }: { children: ReactNode }) {
-  return <div className="flex w-full max-w-3xl justify-end gap-2">{children}</div>
-}
-
 /**
  * Formulir profil bisnis. Menyimpan mengirim SELURUH isian, jadi nilai awal
  * setiap kolom adalah nilai yang tersimpan.
@@ -121,7 +83,9 @@ export function BusinessForm({ profile, onChanged }: { profile: BusinessProfile;
       region_code: profile.region_code,
       postcode: profile.postcode,
     },
-    submit: (values) => updateBusinessProfile(values),
+    // version profil yang sedang disunting: bila orang lain sudah menyimpan
+    // lebih dulu, server menolak dan pesannya meminta memuat ulang.
+    submit: (values) => updateBusinessProfile({ ...values, version: profile.version }),
     toast: { loading: "Menyimpan profil bisnis…", success: "Profil bisnis disimpan" },
     onSuccess: onChanged,
   })
@@ -138,7 +102,7 @@ export function BusinessForm({ profile, onChanged }: { profile: BusinessProfile;
           <LogoField profile={profile} onChanged={onChanged} />
         </FramePanel>
 
-        <Section title="Identitas">
+        <FormSection title="Identitas">
           <form.Field name="display_name">
             {(field) => (
               <FormField field={field} label="Nama bisnis" description="Nama sehari-hari, seperti yang dikenal pelanggan." serverError={serverErrors.display_name}>
@@ -153,9 +117,9 @@ export function BusinessForm({ profile, onChanged }: { profile: BusinessProfile;
               </FormField>
             )}
           </form.Field>
-        </Section>
+        </FormSection>
 
-        <Section title="Kontak">
+        <FormSection title="Kontak">
           <div className="grid gap-5 sm:grid-cols-2">
             <form.Field name="email">
               {(field) => (
@@ -172,9 +136,9 @@ export function BusinessForm({ profile, onChanged }: { profile: BusinessProfile;
               )}
             </form.Field>
           </div>
-        </Section>
+        </FormSection>
 
-        <Section title="Identitas legal">
+        <FormSection title="Identitas legal">
           <form.Field name="business_type">
             {(field) => (
               <FormField field={field} label="Jenis usaha" serverError={serverErrors.business_type}>
@@ -222,13 +186,13 @@ export function BusinessForm({ profile, onChanged }: { profile: BusinessProfile;
               </FormField>
             )}
           </form.Field>
-        </Section>
+        </FormSection>
 
-        <Section title="Alamat">
+        <FormSection title="Alamat">
           <form.Field name="address">
             {(field) => (
               <FormField field={field} label="Alamat" description="Nama jalan, nomor, RT/RW." serverError={serverErrors.address}>
-                <Textarea {...fieldProps(field)} onChange={(event) => field.handleChange(event.target.value)} rows={2} />
+                <TextArea field={field} rows={2} />
               </FormField>
             )}
           </form.Field>
@@ -262,7 +226,7 @@ export function BusinessForm({ profile, onChanged }: { profile: BusinessProfile;
               </FormField>
             )}
           </form.Field>
-        </Section>
+        </FormSection>
       </Frame>
     </ApiForm>
   )

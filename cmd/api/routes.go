@@ -70,7 +70,7 @@ func prepare(ctx context.Context, pool *pgxpool.Pool, cfg config.Config, logger 
 	sessions := authn.NewSessions(pool, kit, cfg.OIDCRecheck, logger)
 	login.Bind(kit, inst.OrganizationID, sessions)
 
-	standard, err := modules.New(pool, logger)
+	standard, err := modules.New(pool, inst.OrganizationID, logger)
 	if err != nil {
 		return app{}, err
 	}
@@ -97,7 +97,8 @@ func (a app) routes() (func(chi.Router), error) {
 			Pool: a.pool, Sessions: a.sessions, Kit: a.kit, GonsuLogin: a.gonsuLogin, Organization: a.org,
 			Logger: a.logger, Limits: limits, TrustedProxies: a.trustedProxies,
 		})
-		// Tanpa sesi: berkas media publik (logo) tampil sebelum ada yang login.
+		// Tanpa sesi: berkas media publik (logo) dan data halaman depan tampil
+		// sebelum ada yang login.
 		a.modules.PublicRoutes(r)
 		r.Route("/v1", func(api chi.Router) {
 			// Urutan: sesi dulu, baru pembatas. Pembatas memakai id pengguna
@@ -109,7 +110,7 @@ func (a app) routes() (func(chi.Router), error) {
 			api.Get("/me", authn.Me(a.kit.PortalConfigured()))
 			api.Get("/license", entitlement.StatusHandler(a.license))
 			authn.UserRoutes(api, authn.NewUserAdmin(a.pool, a.license, a.kit.Identities(), a.logger), a.logger)
-			// Modul standar: profil bisnis dan wilayah. Di luar hak pakai utama,
+			// Modul standar: profil bisnis, website, dan wilayah. Di luar hak pakai utama,
 			// seperti Pengguna & Akses — identitas bisnis tetap tampil dan dapat
 			// dibetulkan walau langganan sedang tidak aktif.
 			a.modules.Routes(api)
