@@ -69,8 +69,7 @@ berkas yang ikut ke produk — misalnya pengantar di `AGENTS.md`:
 
 Berkas yang seluruhnya milik kit didaftarkan di `remove`: manifes, berkas
 ini, `LICENSE` (lisensi kit; lisensi produk urusan tim produknya),
-`scripts/kit-check.sh`, `.github/workflows/kit.yml`, dan
-`.github/actionlint.yaml`.
+`scripts/kit-check.sh`, dan `.github/workflows/kit.yml`.
 
 ## `main` adalah yang dipakai
 
@@ -111,9 +110,11 @@ yang dibuat siapa pun sudah membawanya.
 - **Tanpa rahasia dan tanpa nilai milik satu pemasangan.** Kit hanya menyebut
   NAMA secret dan variabel; alamat server, domain, dan kredensial diisi tim
   produk di repository mereka.
-- **CI hanya memakai runner GitHub.** `release.yml` adalah pengecualian yang
-  dipicu tag `v*` saja, dan tidak pernah berjalan di repository ini.
+- **CI hanya memakai runner GitHub**, termasuk rilis. `release.yml` dipicu
+  tag `v*` saja, dan tidak pernah berjalan di repository ini.
 - **Jangan menulis ulang yang dibawa SDK dan appkit**: login, lease, pemberian
   akses, profil bisnis, media, wilayah.
-- **`release.yml` berasal dari pipeline rilis GONSU One.** Perubahannya datang
-  dari platform, bukan dari sini.
+- **`release.yml` hanya pemanggil.** Langkah rilisnya milik platform dan hidup
+  di repository `gonsu-release`; yang ada di sini hanya identitas produk
+  (`product_code`, `variant_code`, `image_path`) dan nama satu secret. Jangan
+  menyalin langkahnya ke sini.
