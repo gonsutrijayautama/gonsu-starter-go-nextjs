@@ -1,0 +1,84 @@
+# Konfigurasi sqlc: SQL eksplisit, tanpa ORM.
+#
+# Setiap modul punya berkas query dan paket hasil generate SENDIRI
+# (internal/<module>/store), bukan satu paket bersama untuk semua tabel. Dengan
+# begitu modul hanya dapat memanggil query miliknya; aksi lintas modul lewat
+# service modul lain.
+#
+# Schema dibaca dari migrations/ yang sama dengan yang dijalankan saat start,
+# sehingga tipe hasil generate tidak dapat menyimpang dari schema sebenarnya.
+#
+#   make generate      hasilnya di-commit; jangan diedit tangan
+version: "2"
+
+sql:
+  - &module
+    engine: postgresql
+    schema: migrations
+    queries: internal/authn/queries.sql
+    gen:
+      go: &go
+        package: store
+        out: internal/authn/store
+        # pgx/v5 native, bukan lewat database/sql.
+        sql_package: pgx/v5
+        # List mengembalikan slice kosong, bukan nil, supaya JSON-nya `[]`.
+        emit_empty_slices: true
+        # Kolom nullable menjadi *T, bukan pgtype.T, supaya tipe pgx tidak
+        # terseret ke lapisan domain.
+        emit_pointers_for_null_types: true
+        overrides:
+          - db_type: "uuid"
+            go_type: "github.com/google/uuid.UUID"
+          - db_type: "uuid"
+            nullable: true
+            go_type:
+              import: "github.com/google/uuid"
+              type: "UUID"
+              pointer: true
+          # numeric dibaca sebagai string, bukan pgtype.Numeric: tipe pgx
+          # tidak boleh terseret ke lapisan domain. Aritmetikanya dikerjakan
+          # PostgreSQL pada kolom numeric-nya sendiri.
+          - db_type: "pg_catalog.numeric"
+            go_type: "string"
+          - db_type: "pg_catalog.numeric"
+            nullable: true
+            go_type:
+              type: "string"
+              pointer: true
+          - db_type: "timestamptz"
+            go_type: "time.Time"
+          - db_type: "timestamptz"
+            nullable: true
+            go_type:
+              type: "time.Time"
+              pointer: true
+          # Kolom date dibaca sebagai time.Time pada tengah malam UTC.
+          - db_type: "date"
+            go_type: "time.Time"
+          - db_type: "date"
+            nullable: true
+            go_type:
+              type: "time.Time"
+              pointer: true
+
+  - <<: *module
+    queries: internal/idempotency/queries.sql
+    gen:
+      go:
+        <<: *go
+        out: internal/idempotency/store
+
+  - <<: *module
+    queries: internal/tenant/queries.sql
+    gen:
+      go:
+        <<: *go
+        out: internal/tenant/store
+
+  - <<: *module
+    queries: internal/notes/queries.sql
+    gen:
+      go:
+        <<: *go
+        out: internal/notes/store

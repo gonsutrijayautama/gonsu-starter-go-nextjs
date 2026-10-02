@@ -1,0 +1,32 @@
+# Pemeriksaan milik STARTER KIT — `gonsu new` membuang berkas ini dari project
+# hasil. Yang diuji `ci.yml` adalah aplikasinya; yang diuji di sini adalah
+# manifes yang dipakai `gonsu new` untuk mengganti identitas contoh.
+#
+# Runner GitHub, tanpa secret.
+name: Kit
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: kit-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  manifest:
+    name: Manifes kit
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # Pemeriksaan tag v* membutuhkan daftar tag.
+          fetch-depth: 0
+
+      - name: scripts/kit-check.sh
+        run: scripts/kit-check.sh

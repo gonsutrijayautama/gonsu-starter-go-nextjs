@@ -1,0 +1,39 @@
+{
+  "schema": 1,
+  "kit": "go-nextjs",
+  "label": "Go + Next.js",
+  "identity": {
+    "product_code": "produk-contoh",
+    "display_name": "Produk Contoh",
+    "module_path": "github.com/gonsutrijayautama/gonsu-starter-go-nextjs"
+  },
+  "remove": [
+    "gonsu.kit.json",
+    "KIT.md",
+    "LICENSE",
+    "scripts/kit-check.sh",
+    ".github/workflows/kit.yml"
+  ],
+  "install": [
+    {
+      "dir": ".",
+      "run": [
+        "go",
+        "mod",
+        "download"
+      ]
+    },
+    {
+      "dir": "web",
+      "run": [
+        "bun",
+        "install",
+        "--frozen-lockfile"
+      ]
+    }
+  ],
+  "next_steps": [
+    "make run       # server dan database lokal",
+    "make web-dev   # terminal lain: http://localhost:3000"
+  ]
+}

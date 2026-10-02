@@ -1,0 +1,15 @@
+/node_modules/
+/.next/
+# Hasil static export, disajikan binary Go. Dibangun ulang, tidak di-commit —
+# kecuali .gitkeep: web/embed.go butuh out/ selalu ada supaya binary dapat
+# di-compile sebelum frontend di-build.
+/out/*
+!/out/.gitkeep
+/coverage/
+# Hasil uji Playwright (make e2e).
+/test-results/
+/playwright-report/
+*.tsbuildinfo
+next-env.d.ts
+.env*
+.DS_Store

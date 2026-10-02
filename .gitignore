@@ -1,0 +1,6 @@
+# Binary hasil build.
+/bin/
+/dist/
+
+# Konfigurasi lokal — nilainya tidak pernah masuk git.
+.env

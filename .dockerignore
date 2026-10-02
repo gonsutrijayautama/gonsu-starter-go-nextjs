@@ -1,0 +1,24 @@
+# Konteks build sekecil mungkin: yang tidak dibutuhkan image tidak dikirim ke
+# builder, dan berkas rahasia lokal tidak pernah masuk layer.
+.git
+.github
+**/*.md
+bin
+dist
+scripts
+.env
+.env.*
+compose*.yaml
+Makefile
+
+# Frontend dibangun ulang di dalam image dari sumbernya; uji ujung ke ujung
+# tidak ikut.
+web/node_modules
+web/.next
+web/out
+web/*.tsbuildinfo
+web/next-env.d.ts
+web/e2e
+web/playwright.config.ts
+web/test-results
+web/playwright-report
