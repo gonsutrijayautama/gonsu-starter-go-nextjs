@@ -1,6 +1,7 @@
 # Pemeriksaan milik STARTER KIT — `gonsu new` membuang berkas ini dari project
 # hasil. Yang diuji `ci.yml` adalah aplikasinya; yang diuji di sini adalah
-# manifes yang dipakai `gonsu new` untuk mengganti identitas contoh.
+# manifes yang dipakai `gonsu new` untuk mengganti identitas contoh, dan
+# `gonsu new` itu sendiri terhadap kit ini.
 #
 # Runner GitHub, tanpa secret.
 name: Kit
@@ -20,7 +21,7 @@ permissions:
 jobs:
   manifest:
     name: Manifes kit
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -40,3 +41,62 @@ jobs:
 
       - name: actionlint
         run: go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.12 .github/workflows/*.yml
+
+  # `gonsu new` mengambil ujung `main` kit ini tanpa pin, jadi setiap PR harus
+  # membuktikan bahwa gonsu yang dipakai tim — rilis terbarunya — masih dapat
+  # mengubah kit ini menjadi project yang ter-compile.
+  new:
+    name: gonsu new dari kit ini
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+
+      # Installer resmi: mencocokkan SHA-256 binary dengan SHA256SUMS rilisnya.
+      - name: Memasang gonsu rilis terbaru
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/gonsutrijayautama/gonsu-cli/main/install.sh \
+            | GONSU_INSTALL_DIR="$RUNNER_TEMP/bin" sh
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+
+      # Nama tampilan bertanda kutip: penggantian di berkas kode harus
+      # meng-escape-nya.
+      - name: gonsu new
+        working-directory: ${{ runner.temp }}
+        run: gonsu new uji-kit --name 'Toko "Uji"' --kit-source "$GITHUB_WORKSPACE" -n --git=false --install=false
+
+      - name: Tidak ada sisa identitas contoh
+        working-directory: ${{ runner.temp }}/uji-kit
+        run: |
+          # .gonsu/kit.json memang mencatat kit asalnya.
+          if grep -rIl --exclude-dir=.gonsu -e 'produk-contoh' -e 'Produk Contoh' -e 'gonsu-starter-go-nextjs' .; then
+            echo "::error::Identitas contoh kit tersisa di berkas di atas."
+            exit 1
+          fi
+          for kit_file in gonsu.kit.json KIT.md scripts/kit-check.sh .github/workflows/kit.yml; do
+            if [ -e "$kit_file" ]; then
+              echo "::error::Berkas milik kit ikut ke project hasil: $kit_file"
+              exit 1
+            fi
+          done
+
+      # Module path yang diganti harus konsisten di seluruh import, hasil
+      # penggantian tetap rapi menurut gofmt, dan dokumen project hasil masih
+      # menunjuk kode yang ada.
+      - name: Project hasil ter-compile
+        working-directory: ${{ runner.temp }}/uji-kit
+        run: |
+          go build ./...
+          go vet ./...
+          go vet -tags dev ./...
+          unformatted="$(gofmt -l cmd internal migrations)"
+          if [ -n "$unformatted" ]; then
+            echo "::error::Tidak rapi menurut gofmt sesudah identitas diganti:"
+            echo "$unformatted"
+            exit 1
+          fi
+          go test -count=1 ./internal/security/...
