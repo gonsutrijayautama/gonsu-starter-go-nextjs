@@ -286,6 +286,26 @@ func TestLoadMediaStorage(t *testing.T) {
 		}
 	})
 
+	// Awalan selalu berakhir "/" dan tidak pernah berawal "/", bagaimanapun
+	// operator menulisnya: tanpa itu key menjadi "aplikasi<org>/<id>".
+	for written, want := range map[string]string{"": "", "aplikasi": "aplikasi/", "/aplikasi/": "aplikasi/", "a/b": "a/b/", "/": ""} {
+		t.Run("awalan "+written, func(t *testing.T) {
+			cfg, err := Load(with(map[string]string{
+				"MEDIA_S3_ENDPOINT":          "https://s3.internal",
+				"MEDIA_S3_BUCKET":            "berkas",
+				"MEDIA_S3_ACCESS_KEY_ID":     "kunci",
+				"MEDIA_S3_SECRET_ACCESS_KEY": "rahasia",
+				"MEDIA_S3_PREFIX":            written,
+			}))
+			if err != nil {
+				t.Fatalf("Load: %v", err)
+			}
+			if cfg.MediaStorage.Prefix != want {
+				t.Errorf("Prefix = %q, ingin %q", cfg.MediaStorage.Prefix, want)
+			}
+		})
+	}
+
 	// Yang terisi sebagian ditolak: diam-diam kembali ke database membuat
 	// berkas tersimpan di tempat yang tidak dimaksud operator.
 	rejected := []struct {
@@ -299,6 +319,8 @@ func TestLoadMediaStorage(t *testing.T) {
 			"MEDIA_S3_ACCESS_KEY_ID": "kunci", "MEDIA_S3_SECRET_ACCESS_KEY": "rahasia"},
 			"MEDIA_S3_BUCKET belum diisi"},
 		{"hanya path style", map[string]string{"MEDIA_S3_PATH_STYLE": "true"},
+			"MEDIA_S3_BUCKET"},
+		{"hanya awalan", map[string]string{"MEDIA_S3_PREFIX": "aplikasi"},
 			"MEDIA_S3_BUCKET"},
 		{"endpoint bukan alamat", map[string]string{"MEDIA_S3_ENDPOINT": "s3.internal", "MEDIA_S3_BUCKET": "berkas",
 			"MEDIA_S3_ACCESS_KEY_ID": "kunci", "MEDIA_S3_SECRET_ACCESS_KEY": "rahasia"},

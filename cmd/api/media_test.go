@@ -98,7 +98,9 @@ func TestLogoOnObjectStorage(t *testing.T) {
 	defer srv.Close()
 
 	pool := testdb.New(t)
-	app := newAppWith(t, pool, config.Config{MediaStorage: bucketConfig(srv.URL, "berkas")})
+	storage := bucketConfig(srv.URL, "berkas")
+	storage.Prefix = "aplikasi/"
+	app := newAppWith(t, pool, config.Config{MediaStorage: storage})
 	_, a := testdb.Tenant(t, pool, authz.RoleAdministrator)
 	admin := sessionFor(t, pool, a, time.Hour)
 	logo := logoPNG(t)
@@ -111,6 +113,13 @@ func TestLogoOnObjectStorage(t *testing.T) {
 	}
 	if bucket.len() != 1 {
 		t.Errorf("isi di bucket = %d, ingin 1", bucket.len())
+	}
+	// Key-nya <awalan><organization>/<id berkas>.
+	wantPrefix := "/aplikasi/" + a.OrganizationID.String() + "/"
+	for key := range bucket.objects {
+		if !strings.HasPrefix(key, wantPrefix) {
+			t.Errorf("key = %q, ingin berawalan %q", key, wantPrefix)
+		}
 	}
 	var blobs int
 	if err := pool.QueryRow(context.Background(), `SELECT COUNT(*) FROM appkit_media_blobs`).Scan(&blobs); err != nil {

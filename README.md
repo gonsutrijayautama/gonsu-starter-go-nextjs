@@ -193,6 +193,7 @@ yang dibacanya.
 | `MEDIA_S3_BUCKET`, `MEDIA_S3_ACCESS_KEY_ID`, `MEDIA_S3_SECRET_ACCESS_KEY` | operator | object storage untuk isi berkas media (logo, gambar); semuanya kosong berarti disimpan di database |
 | `MEDIA_S3_ENDPOINT` | operator | alamat layanan S3, mis. Cloudflare R2; kosong berarti AWS S3 |
 | `MEDIA_S3_REGION` | operator | wilayah bucket; bawaan `auto` bila endpoint diisi, wajib untuk AWS S3 |
+| `MEDIA_S3_PREFIX` | operator | awalan key di dalam bucket, mis. `nama-aplikasi`; untuk bucket yang dipakai lebih dari satu aplikasi |
 | `MEDIA_S3_PATH_STYLE` | operator | `true` untuk layanan beralamat `https://host/bucket/key` |
 | `APP_DEV_ORGANIZATION_ID` | pengembang | hanya build `dev`: organization lokal |
 | `DEV_HTTP_ADDR` | `make run` | hanya build `dev`: alamat dengar; build rilis selalu `:8080` |

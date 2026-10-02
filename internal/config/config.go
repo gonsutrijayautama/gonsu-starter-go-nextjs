@@ -82,6 +82,9 @@ type MediaStorage struct {
 	Bucket          string
 	AccessKeyID     string
 	SecretAccessKey string
+	// Prefix adalah awalan key di dalam bucket, kosong atau diakhiri "/".
+	// Untuk bucket yang dipakai lebih dari satu aplikasi.
+	Prefix string
 	// PathStyle: alamat https://host/bucket/key alih-alih
 	// https://bucket.host/key.
 	PathStyle bool
@@ -99,6 +102,7 @@ const (
 	envMediaBucket    = "MEDIA_S3_BUCKET"
 	envMediaAccessKey = "MEDIA_S3_ACCESS_KEY_ID"
 	envMediaSecretKey = "MEDIA_S3_SECRET_ACCESS_KEY"
+	envMediaPrefix    = "MEDIA_S3_PREFIX"
 	envMediaPathStyle = "MEDIA_S3_PATH_STYLE"
 )
 
@@ -137,6 +141,7 @@ func mediaStorage(getenv func(string) string) (MediaStorage, error) {
 		Bucket:          read(envMediaBucket),
 		AccessKeyID:     read(envMediaAccessKey),
 		SecretAccessKey: read(envMediaSecretKey),
+		Prefix:          read(envMediaPrefix),
 	}
 	pathStyle := read(envMediaPathStyle)
 	if m == (MediaStorage{}) && pathStyle == "" {
@@ -171,6 +176,10 @@ func mediaStorage(getenv func(string) string) (MediaStorage, error) {
 			return MediaStorage{}, fmt.Errorf("%s wajib diisi bila %s kosong", envMediaRegion, envMediaEndpoint)
 		}
 		m.Region = "auto"
+	}
+	// "/aplikasi" dan "aplikasi/" sama-sama berarti folder "aplikasi/".
+	if m.Prefix = strings.Trim(m.Prefix, "/"); m.Prefix != "" {
+		m.Prefix += "/"
 	}
 	if pathStyle != "" {
 		v, err := strconv.ParseBool(pathStyle)

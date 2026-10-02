@@ -28,6 +28,7 @@ func mediaStore(ctx context.Context, cfg config.MediaStorage, logger *slog.Logge
 		Bucket:          cfg.Bucket,
 		AccessKeyID:     cfg.AccessKeyID,
 		SecretAccessKey: cfg.SecretAccessKey,
+		Prefix:          cfg.Prefix,
 		PathStyle:       cfg.PathStyle,
 	})
 	if err != nil {
