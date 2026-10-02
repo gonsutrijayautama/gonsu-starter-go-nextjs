@@ -190,7 +190,32 @@ yang dibacanya.
 | `GONSU_*` | GONSU | login, lisensi, pemberian akses — dibaca kit, bukan kode produk |
 | `GONSU_PORTAL_URL` | GONSU | alamat Portal untuk tautan langganan, tagihan, dan paket; kosong berarti tautannya tidak tampil |
 | `APP_TRUSTED_PROXIES` | operator | alamat reverse proxy yang boleh menulis `X-Forwarded-For`; kosong berarti diabaikan |
+| `MEDIA_S3_BUCKET`, `MEDIA_S3_ACCESS_KEY_ID`, `MEDIA_S3_SECRET_ACCESS_KEY` | operator | object storage untuk isi berkas media (logo, gambar); semuanya kosong berarti disimpan di database |
+| `MEDIA_S3_ENDPOINT` | operator | alamat layanan S3, mis. Cloudflare R2; kosong berarti AWS S3 |
+| `MEDIA_S3_REGION` | operator | wilayah bucket; bawaan `auto` bila endpoint diisi, wajib untuk AWS S3 |
+| `MEDIA_S3_PATH_STYLE` | operator | `true` untuk layanan beralamat `https://host/bucket/key` |
 | `APP_DEV_ORGANIZATION_ID` | pengembang | hanya build `dev`: organization lokal |
 | `DEV_HTTP_ADDR` | `make run` | hanya build `dev`: alamat dengar; build rilis selalu `:8080` |
 
 Aplikasi mendengar di `:8080` — kontrak dengan chart GONSU, bukan konfigurasi.
+
+### Berkas media di object storage
+
+Bawaannya, isi logo dan gambar disimpan di database — tidak butuh layanan
+lain, dan ikut masuk backup database. Mengisi `MEDIA_S3_*` memindahkan berkas
+**baru** ke bucket yang berbicara API S3 (Cloudflare R2, AWS S3, dan
+sejenisnya):
+
+- berkas yang isinya sudah di database tetap tampil; tidak ada data yang
+  perlu dipindahkan. Arah sebaliknya tidak: mengosongkan `MEDIA_S3_*` lagi
+  membuat berkas yang isinya di bucket tidak terbaca;
+- bucket-nya tidak perlu dibuka untuk umum — berkas tetap disajikan aplikasi
+  di `/media/{id}`;
+- bucket yang tidak terjangkau, atau `MEDIA_S3_*` yang terisi sebagian,
+  **menggagalkan start**, supaya salah konfigurasi tidak baru ketahuan saat
+  pengguna mengunggah logo.
+
+> Nama `MEDIA_S3_*` **sementara**. GONSU belum menetapkan nama variabel bucket
+> yang diserahkannya ke produk di cloud; begitu ditetapkan, nama di
+> `internal/config` mengikuti. Kuota penyimpanan per paket juga belum
+> dipasang, karena nama hak pakainya belum ditetapkan.

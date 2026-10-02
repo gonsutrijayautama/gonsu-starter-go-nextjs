@@ -4,6 +4,9 @@
 // Nama variabel ditentukan GONSU dan dipakai apa adanya — jangan menambah nama
 // sendiri untuk nilai yang sama. Port sengaja tidak ada di sini: 8080 adalah
 // kontrak dengan chart, bukan konfigurasi.
+//
+// Satu pengecualian: variabel object storage media (MEDIA_S3_*). GONSU belum
+// menetapkan namanya, jadi nama di sini SEMENTARA; lihat konstanta envMedia*.
 package config
 
 import (
@@ -63,7 +66,41 @@ type Config struct {
 	//                 memasang maupun mengetahuinya, dan tidak ada jaminan
 	//                 jaringan bahwa tidak ada jalan lain ke aplikasi.
 	TrustedProxies string
+
+	// MediaStorage adalah object storage untuk isi berkas media. Tidak
+	// dikonfigurasi berarti isi berkas disimpan di database.
+	MediaStorage MediaStorage
 }
+
+// MediaStorage adalah alamat dan kredensial bucket yang berbicara API S3
+// (Cloudflare R2, AWS S3, dan sejenisnya).
+type MediaStorage struct {
+	// Endpoint kosong berarti AWS S3 di Region.
+	Endpoint string
+	Region   string
+	// Bucket kosong berarti object storage tidak dikonfigurasi.
+	Bucket          string
+	AccessKeyID     string
+	SecretAccessKey string
+	// PathStyle: alamat https://host/bucket/key alih-alih
+	// https://bucket.host/key.
+	PathStyle bool
+}
+
+// Configured melaporkan apakah object storage media dikonfigurasi.
+func (m MediaStorage) Configured() bool { return m.Bucket != "" }
+
+// Nama variabel object storage media. SEMENTARA: GONSU belum menetapkan nama
+// variabel bucket yang diserahkannya ke produk. Begitu ditetapkan, yang
+// berubah hanya blok ini dan tabel Environment di README.md.
+const (
+	envMediaEndpoint  = "MEDIA_S3_ENDPOINT"
+	envMediaRegion    = "MEDIA_S3_REGION"
+	envMediaBucket    = "MEDIA_S3_BUCKET"
+	envMediaAccessKey = "MEDIA_S3_ACCESS_KEY_ID"
+	envMediaSecretKey = "MEDIA_S3_SECRET_ACCESS_KEY"
+	envMediaPathStyle = "MEDIA_S3_PATH_STYLE"
+)
 
 // Load membaca DATABASE_URL (atau DATABASE_HOST, DATABASE_PORT,
 // DATABASE_NAME, DATABASE_USER, DATABASE_PASSWORD) dan variabel milik
@@ -83,7 +120,66 @@ func Load(getenv func(string) string) (Config, error) {
 	if cfg.OIDCRecheck, err = seconds(getenv, "GONSU_OIDC_RECHECK_SECONDS"); err != nil {
 		return Config{}, err
 	}
+	if cfg.MediaStorage, err = mediaStorage(getenv); err != nil {
+		return Config{}, err
+	}
 	return cfg, nil
+}
+
+// mediaStorage membaca MEDIA_S3_*. Semuanya kosong berarti tidak
+// dikonfigurasi. Yang terisi sebagian DITOLAK: diam-diam kembali ke database
+// membuat berkas tersimpan di tempat yang tidak dimaksud operator.
+func mediaStorage(getenv func(string) string) (MediaStorage, error) {
+	read := func(key string) string { return strings.TrimSpace(getenv(key)) }
+	m := MediaStorage{
+		Endpoint:        read(envMediaEndpoint),
+		Region:          read(envMediaRegion),
+		Bucket:          read(envMediaBucket),
+		AccessKeyID:     read(envMediaAccessKey),
+		SecretAccessKey: read(envMediaSecretKey),
+	}
+	pathStyle := read(envMediaPathStyle)
+	if m == (MediaStorage{}) && pathStyle == "" {
+		return MediaStorage{}, nil
+	}
+
+	var missing []string
+	for _, v := range []struct{ key, val string }{
+		{envMediaBucket, m.Bucket},
+		{envMediaAccessKey, m.AccessKeyID},
+		{envMediaSecretKey, m.SecretAccessKey},
+	} {
+		if v.val == "" {
+			missing = append(missing, v.key)
+		}
+	}
+	if len(missing) > 0 {
+		return MediaStorage{}, fmt.Errorf("konfigurasi object storage media belum lengkap: %s belum diisi",
+			strings.Join(missing, ", "))
+	}
+
+	if m.Endpoint != "" {
+		u, err := url.Parse(m.Endpoint)
+		if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+			return MediaStorage{}, fmt.Errorf("%s %q harus alamat http(s)", envMediaEndpoint, m.Endpoint)
+		}
+	}
+	if m.Region == "" {
+		// Layanan selain AWS umumnya tidak mengenal wilayah; R2 memakai "auto".
+		// Tanpa endpoint berarti AWS, dan AWS butuh wilayah bucket-nya.
+		if m.Endpoint == "" {
+			return MediaStorage{}, fmt.Errorf("%s wajib diisi bila %s kosong", envMediaRegion, envMediaEndpoint)
+		}
+		m.Region = "auto"
+	}
+	if pathStyle != "" {
+		v, err := strconv.ParseBool(pathStyle)
+		if err != nil {
+			return MediaStorage{}, fmt.Errorf("%s %q harus true atau false", envMediaPathStyle, pathStyle)
+		}
+		m.PathStyle = v
+	}
+	return m, nil
 }
 
 // GonsuLoginConfigured melaporkan apakah GONSU memberi pemasangan ini login:

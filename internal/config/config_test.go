@@ -226,3 +226,102 @@ func TestGonsuLoginConfigured(t *testing.T) {
 		t.Error("Config tanpa Getenv mengaku diberi login GONSU")
 	}
 }
+
+func TestLoadMediaStorage(t *testing.T) {
+	base := map[string]string{"DATABASE_URL": "postgres://u:p@db/app"}
+	with := func(extra map[string]string) func(string) string {
+		m := map[string]string{}
+		for k, v := range base {
+			m[k] = v
+		}
+		for k, v := range extra {
+			m[k] = v
+		}
+		return env(m)
+	}
+
+	t.Run("tanpa variabel: tidak dikonfigurasi", func(t *testing.T) {
+		cfg, err := Load(with(nil))
+		if err != nil {
+			t.Fatalf("Load: %v", err)
+		}
+		if cfg.MediaStorage.Configured() {
+			t.Errorf("MediaStorage = %+v, ingin kosong", cfg.MediaStorage)
+		}
+	})
+
+	t.Run("R2: wilayah bawaan auto", func(t *testing.T) {
+		cfg, err := Load(with(map[string]string{
+			"MEDIA_S3_ENDPOINT":          "https://akun.r2.cloudflarestorage.com",
+			"MEDIA_S3_BUCKET":            "berkas",
+			"MEDIA_S3_ACCESS_KEY_ID":     "kunci\n",
+			"MEDIA_S3_SECRET_ACCESS_KEY": "rahasia\n",
+		}))
+		if err != nil {
+			t.Fatalf("Load: %v", err)
+		}
+		want := MediaStorage{
+			Endpoint: "https://akun.r2.cloudflarestorage.com", Region: "auto", Bucket: "berkas",
+			AccessKeyID: "kunci", SecretAccessKey: "rahasia",
+		}
+		if cfg.MediaStorage != want {
+			t.Errorf("MediaStorage = %+v, ingin %+v", cfg.MediaStorage, want)
+		}
+	})
+
+	t.Run("path style dan wilayah eksplisit", func(t *testing.T) {
+		cfg, err := Load(with(map[string]string{
+			"MEDIA_S3_ENDPOINT":          "http://s3.internal:9000",
+			"MEDIA_S3_REGION":            "us-east-1",
+			"MEDIA_S3_BUCKET":            "berkas",
+			"MEDIA_S3_ACCESS_KEY_ID":     "kunci",
+			"MEDIA_S3_SECRET_ACCESS_KEY": "rahasia",
+			"MEDIA_S3_PATH_STYLE":        "true",
+		}))
+		if err != nil {
+			t.Fatalf("Load: %v", err)
+		}
+		if !cfg.MediaStorage.PathStyle || cfg.MediaStorage.Region != "us-east-1" {
+			t.Errorf("MediaStorage = %+v", cfg.MediaStorage)
+		}
+	})
+
+	// Yang terisi sebagian ditolak: diam-diam kembali ke database membuat
+	// berkas tersimpan di tempat yang tidak dimaksud operator.
+	rejected := []struct {
+		name string
+		env  map[string]string
+		want string
+	}{
+		{"hanya bucket", map[string]string{"MEDIA_S3_BUCKET": "berkas"},
+			"MEDIA_S3_ACCESS_KEY_ID, MEDIA_S3_SECRET_ACCESS_KEY"},
+		{"tanpa bucket", map[string]string{"MEDIA_S3_ENDPOINT": "https://s3.internal",
+			"MEDIA_S3_ACCESS_KEY_ID": "kunci", "MEDIA_S3_SECRET_ACCESS_KEY": "rahasia"},
+			"MEDIA_S3_BUCKET belum diisi"},
+		{"hanya path style", map[string]string{"MEDIA_S3_PATH_STYLE": "true"},
+			"MEDIA_S3_BUCKET"},
+		{"endpoint bukan alamat", map[string]string{"MEDIA_S3_ENDPOINT": "s3.internal", "MEDIA_S3_BUCKET": "berkas",
+			"MEDIA_S3_ACCESS_KEY_ID": "kunci", "MEDIA_S3_SECRET_ACCESS_KEY": "rahasia"},
+			"MEDIA_S3_ENDPOINT"},
+		{"AWS tanpa wilayah", map[string]string{"MEDIA_S3_BUCKET": "berkas",
+			"MEDIA_S3_ACCESS_KEY_ID": "kunci", "MEDIA_S3_SECRET_ACCESS_KEY": "rahasia"},
+			"MEDIA_S3_REGION wajib"},
+		{"path style bukan boolean", map[string]string{"MEDIA_S3_ENDPOINT": "https://s3.internal", "MEDIA_S3_BUCKET": "berkas",
+			"MEDIA_S3_ACCESS_KEY_ID": "kunci", "MEDIA_S3_SECRET_ACCESS_KEY": "rahasia", "MEDIA_S3_PATH_STYLE": "ya"},
+			"MEDIA_S3_PATH_STYLE"},
+	}
+	for _, tt := range rejected {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := Load(with(tt.env))
+			if err == nil {
+				t.Fatal("Load lolos")
+			}
+			if !strings.Contains(err.Error(), tt.want) {
+				t.Errorf("galat = %q, ingin memuat %q", err, tt.want)
+			}
+			if strings.Contains(err.Error(), "rahasia") {
+				t.Errorf("galat memuat secret: %v", err)
+			}
+		})
+	}
+}

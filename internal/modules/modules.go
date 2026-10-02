@@ -59,10 +59,18 @@ type Standard struct {
 	regions []appkit.Route
 }
 
+// Options mengatur modul standar. Nilai kosong memakai bawaan.
+type Options struct {
+	// MediaStore adalah penyimpanan ISI berkas media. Kosong: database.
+	// Berkas yang isinya sudah di database tetap terbaca setelah penyimpanan
+	// lain dipasang.
+	MediaStore media.Store
+}
+
 // New menyiapkan modul standar. Dipanggil sekali saat start. installation
 // adalah organization pemasangan ini: satu pemasangan melayani satu
 // organization, dan dialah pemilik halaman depan yang dibuka tanpa sesi.
-func New(pool *pgxpool.Pool, installation uuid.UUID, logger *slog.Logger) (*Standard, error) {
+func New(pool *pgxpool.Pool, installation uuid.UUID, logger *slog.Logger, opts Options) (*Standard, error) {
 	hooks := appkit.Hooks{
 		Organization: tenant.OrganizationID,
 		Authorize:    authorize,
@@ -70,7 +78,7 @@ func New(pool *pgxpool.Pool, installation uuid.UUID, logger *slog.Logger) (*Stan
 			httpx.WriteError(w, r, logger, translate(err))
 		},
 	}
-	files, err := media.New(pool, hooks, media.Options{})
+	files, err := media.New(pool, hooks, media.Options{Store: opts.MediaStore})
 	if err != nil {
 		return nil, err
 	}

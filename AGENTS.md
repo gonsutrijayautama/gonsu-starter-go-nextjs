@@ -163,6 +163,13 @@ Profil bisnis, website, media, dan wilayah datang dari library
   sedang disunting, tidak pernah mengarangnya.
 - **Media hanya untuk berkas PUBLIK.** `/media/{id}` dibuka tanpa sesi; jangan
   menyimpan berkas yang butuh izin di sana.
+- **Isi berkas media di database, atau di bucket S3 bila `MEDIA_S3_*` diisi**
+  (`mediaStore` di `cmd/api/media.go`, konfigurasinya `MediaStorage` di
+  `internal/config`). Modul yang menyimpan berkas memakai `Media` dari
+  `modules.Standard` dan tidak perlu tahu penyimpanannya; jangan memanggil
+  klien S3 langsung. Nama `MEDIA_S3_*` sementara — jangan menyebutnya di luar
+  `internal/config` dan `README.md`. Kuota penyimpanan belum dipasang.
+  Test-nya `TestLogoOnObjectStorage` dan `TestLoadMediaStorage`.
 - **Izin library dipetakan di `permissions`** (`internal/modules`). Izin
   library yang belum dipetakan ditolak, jadi modul baru dari library tidak
   terbuka hanya karena di-upgrade.
