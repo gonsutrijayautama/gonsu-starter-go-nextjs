@@ -29,7 +29,8 @@ run: db
 	DATABASE_URL='$(DEV_DATABASE_URL)' DEV_HTTP_ADDR=127.0.0.1:$(DEV_HTTP_PORT) \
 	  go run -tags dev ./cmd/api
 
-## web-dev: frontend dengan hot reload; /v1 dan /auth diteruskan ke `make run`
+## web-dev: frontend dengan hot reload; /v1, /auth, /media, dan /site.json
+## diteruskan ke `make run`
 web-dev:
 	API_ORIGIN=http://127.0.0.1:$(DEV_HTTP_PORT) $(MAKE) -C web dev
 

@@ -25,6 +25,13 @@ import (
 
 var quiet = slog.New(slog.NewTextHandler(io.Discard, nil))
 
+// frontend meniru halaman depan hasil `next build`: cukup untuk membuktikan
+// data bisnis disisipkan ke dalamnya.
+var frontend = fstest.MapFS{
+	"index.html": {Data: []byte(`<!DOCTYPE html><html lang="id"><head><title>Aplikasi</title>` +
+		`<meta name="description" content="Bawaan build."/></head><body>halaman depan</body></html>`)},
+}
+
 func newApp(t *testing.T, pool *pgxpool.Pool) http.Handler {
 	t.Helper()
 	return newAppWith(t, pool, config.Config{})
@@ -45,7 +52,7 @@ func serve(t *testing.T, a app) http.Handler {
 	if err != nil {
 		t.Fatal(err)
 	}
-	return httpx.NewRouter(httpx.Options{Version: "test", Frontend: fstest.MapFS{}, Logger: quiet, Routes: routes})
+	return httpx.NewRouter(httpx.Options{Version: "test", Frontend: frontend, Logger: quiet, Routes: routes, Home: a.modules.RenderHome})
 }
 
 // sessionFor menerbitkan sesi GONSU yang baru saja diperiksa — bentuk sesi

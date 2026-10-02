@@ -30,7 +30,7 @@ aplikasinya**: modul, data, dan layar yang dipakai pelanggan.
 | `internal/entitlement` | `ProductCode`, key hak pakai, `Guard`, status lisensi |
 | `internal/httpx` | router, helper JSON, envelope galat, pembatas laju, penyaji frontend |
 | `internal/idempotency` | `Idempotency-Key` untuk pembuatan data |
-| `internal/modules` | **modul standar GONSU** dari library `gonsu-appkit-go`: profil bisnis, media, wilayah — hanya perekatnya yang ada di sini |
+| `internal/modules` | **modul standar GONSU** dari library `gonsu-appkit-go`: profil bisnis, website, media, wilayah — hanya perekatnya yang ada di sini |
 | `internal/notes` | **modul contoh Catatan** — pola yang ditiru setiap modul baru |
 | `internal/security` | test yang membaca kode: setiap izin ditegakkan, setiap query menyaring tenant |
 | `internal/storage` | koneksi PostgreSQL dan migrasi |
@@ -136,7 +136,7 @@ diminta. Saat membuangnya:
 
 ## Modul standar GONSU
 
-Profil bisnis, media, dan wilayah datang dari library
+Profil bisnis, website, media, dan wilayah datang dari library
 `github.com/gonsutrijayautama/gonsu-appkit-go`, dipasang di
 `internal/modules`. Kodenya sama di setiap produk GONSU.
 
@@ -150,14 +150,27 @@ Profil bisnis, media, dan wilayah datang dari library
   butuh nama, alamat, atau logo bisnis — kepala dokumen, struk — menerima
   `Profiles` dari `modules.Standard` lewat konstruktornya dan memanggil
   `Lookup(ctx, org)`, dengan `org` dari `tenant.OrganizationID(ctx)`.
+- **Halaman depan `/` diisi modul website, bukan ditulis di kode.** Server
+  menyisipkan data bisnis ke halaman itu saat disajikan (`RenderHome`,
+  dipasang sebagai `Home` di `cmd/api/main.go`); frontend membacanya di
+  `web/lib/site.ts`. `/` adalah probe chart GONSU: penyisipan itu tidak pernah
+  gagal dan tidak boleh diganti dengan panggilan API dari halaman. Yang boleh
+  tampil ke pengunjung hanya yang ada di `/site.json` — NPWP dan nama legal
+  tidak pernah.
+- **Simpan-bersamaan dijaga `version`.** `PUT /v1/business-profile` dan
+  `PUT /v1/website` membawa `version` yang dibaca; yang sudah usang dijawab
+  `CONCURRENT_MODIFICATION` (409). Formulirnya mengirim `version` data yang
+  sedang disunting, tidak pernah mengarangnya.
 - **Media hanya untuk berkas PUBLIK.** `/media/{id}` dibuka tanpa sesi; jangan
   menyimpan berkas yang butuh izin di sana.
 - **Izin library dipetakan di `permissions`** (`internal/modules`). Izin
   library yang belum dipetakan ditolak, jadi modul baru dari library tidak
   terbuka hanya karena di-upgrade.
-- Test-nya `TestBusinessProfileOverHTTP` dan kawan-kawannya di
+- Test-nya `TestBusinessProfileOverHTTP`, `TestWebsiteOverHTTP`,
+  `TestHomePageCarriesBusinessIdentity`, dan kawan-kawannya di
   `cmd/api/modules_test.go`; layar dan uji perambannya di
-  `web/app/(app)/settings/business` dan `web/e2e/business-profile.spec.ts`.
+  `web/app/(app)/settings/business`, `web/app/(app)/settings/website`,
+  `web/e2e/business-profile.spec.ts`, dan `web/e2e/website.spec.ts`.
 
 ## Pola yang sering dibutuhkan
 

@@ -8,6 +8,7 @@ import { AppBreadcrumb } from "@/components/app-shell/app-breadcrumb"
 import { AppShell } from "@/components/app-shell/app-shell"
 import { Copyright } from "@/components/app-shell/copyright"
 import { ProductBrand } from "@/components/app-shell/product-brand"
+import { useBusinessProfile } from "@/components/business-profile-context"
 import { UserMenu } from "@/components/app-shell/user-menu"
 import { LicenseBanner } from "@/components/license-banner"
 import { useCan, usePortal, useSession } from "@/components/session-provider"
@@ -20,13 +21,20 @@ export function AppFrame({ children }: { children: React.ReactNode }) {
   const me = useSession()
   const can = useCan()
   const portal = usePortal()
+  const { profile } = useBusinessProfile()
   const sections = visibleSections(can)
   const settings = sections.find((section) => section.id === "settings")
   const settingsHref = settings?.groups[0]?.items[0]?.url
 
   return (
     <AppShell
-      brand={<ProductBrand code={product.code} name={product.name} />}
+      brand={
+        <ProductBrand
+          code={product.code}
+          name={product.name}
+          business={profile ? { name: profile.display_name, logoUrl: profile.logo?.url } : undefined}
+        />
+      }
       sections={sections}
       sidebarFooter={<Copyright holder={product.name} />}
       breadcrumb={<AppBreadcrumb labels={breadcrumbLabels} pages={pages} />}

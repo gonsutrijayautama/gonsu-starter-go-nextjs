@@ -2,15 +2,19 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"image"
 	"image/png"
+	"io"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/gonsutrijayautama/gonsu-starter-go-nextjs/internal/apperr"
 	"github.com/gonsutrijayautama/gonsu-starter-go-nextjs/internal/authz"
+	"github.com/gonsutrijayautama/gonsu-starter-go-nextjs/internal/config"
 	"github.com/gonsutrijayautama/gonsu-starter-go-nextjs/internal/testdb"
 )
 
@@ -209,5 +213,156 @@ func TestRegionsOverHTTP(t *testing.T) {
 		if !found {
 			t.Errorf("GET %s tidak memuat %q", path, want)
 		}
+	}
+}
+
+const websiteBody = `{"mode": "site", "tagline": "Pakaian rapi untuk setiap hari",
+	"services": [{"title": "Jahit ukuran", "description": "Dijahit sesuai ukuran badan.", "icon": "wrench"}],
+	"channels": {"whatsapp": "0812-3456-7890"}, "version": 0}`
+
+type websiteResponse struct {
+	Mode     string `json:"mode"`
+	Tagline  string `json:"tagline"`
+	Version  int    `json:"version"`
+	Channels struct {
+		WhatsApp string `json:"whatsapp"`
+	} `json:"channels"`
+}
+
+func decodeWebsite(t *testing.T, resp *http.Response) websiteResponse {
+	t.Helper()
+	var s websiteResponse
+	if err := json.NewDecoder(resp.Body).Decode(&s); err != nil {
+		t.Fatalf("pengaturan website bukan JSON: %v", err)
+	}
+	return s
+}
+
+// Pengaturan website: dibaca setiap pengguna, diubah pemegang izin
+// settings.website.manage, dan simpan dengan version lama ditolak.
+func TestWebsiteOverHTTP(t *testing.T) {
+	pool := testdb.New(t)
+	app := newApp(t, pool)
+	_, a := testdb.Tenant(t, pool, authz.RoleAdministrator)
+	_, s := testdb.User(t, pool, a.OrganizationID, authz.RoleStaff)
+	admin, staff := sessionFor(t, pool, a, time.Hour), sessionFor(t, pool, s, time.Hour)
+
+	// Bawaannya hanya pintu masuk.
+	resp := do(t, app, call{method: http.MethodGet, path: "/v1/website", cookie: staff})
+	if w := decodeWebsite(t, resp); resp.StatusCode != http.StatusOK || w.Mode != "signin" || w.Version != 0 {
+		t.Fatalf("GET sebelum disimpan = %d, %+v", resp.StatusCode, w)
+	}
+
+	resp = do(t, app, call{method: http.MethodPut, path: "/v1/website", body: websiteBody, cookie: staff})
+	if resp.StatusCode != http.StatusForbidden || errorCode(t, resp) != apperr.CodePermissionDenied {
+		t.Errorf("PUT oleh staf = %d, ingin 403 PERMISSION_DENIED", resp.StatusCode)
+	}
+	if resp := do(t, app, call{method: http.MethodGet, path: "/v1/website"}); resp.StatusCode != http.StatusUnauthorized {
+		t.Errorf("GET tanpa sesi = %d, ingin 401", resp.StatusCode)
+	}
+
+	resp = do(t, app, call{method: http.MethodPut, path: "/v1/website", body: websiteBody, cookie: admin})
+	w := decodeWebsite(t, resp)
+	if resp.StatusCode != http.StatusOK || w.Mode != "site" || w.Version != 1 || w.Channels.WhatsApp != "6281234567890" {
+		t.Fatalf("PUT oleh administrator = %d, %+v", resp.StatusCode, w)
+	}
+
+	// Formulir lain yang masih memegang version 0: ditolak, bukan menimpa.
+	resp = do(t, app, call{method: http.MethodPut, path: "/v1/website", body: websiteBody, cookie: admin})
+	if resp.StatusCode != http.StatusConflict || errorCode(t, resp) != apperr.CodeConcurrentModification {
+		t.Errorf("PUT dengan version lama = %d, ingin 409 CONCURRENT_MODIFICATION", resp.StatusCode)
+	}
+
+	// Tautan berskema lain tidak pernah sampai ke halaman publik.
+	bad := `{"mode": "site", "contact": {"map_url": "javascript:alert(1)"}, "version": 1}`
+	resp = do(t, app, call{method: http.MethodPut, path: "/v1/website", body: bad, cookie: admin})
+	if resp.StatusCode != http.StatusBadRequest || errorCode(t, resp) != apperr.CodeValidationFailed {
+		t.Errorf("tautan javascript: = %d, ingin 400 VALIDATION_FAILED", resp.StatusCode)
+	}
+}
+
+// Profil bisnis pun dijaga dari simpan-bersamaan.
+func TestBusinessProfileRejectsStaleVersion(t *testing.T) {
+	pool := testdb.New(t)
+	app := newApp(t, pool)
+	_, a := testdb.Tenant(t, pool, authz.RoleAdministrator)
+	admin := sessionFor(t, pool, a, time.Hour)
+
+	if resp := do(t, app, call{method: http.MethodPut, path: "/v1/business-profile", body: profileBody, cookie: admin}); resp.StatusCode != http.StatusOK {
+		t.Fatalf("simpan pertama = %d", resp.StatusCode)
+	}
+	resp := do(t, app, call{method: http.MethodPut, path: "/v1/business-profile", body: profileBody, cookie: admin})
+	if resp.StatusCode != http.StatusConflict || errorCode(t, resp) != apperr.CodeConcurrentModification {
+		t.Errorf("simpan kedua dengan version 0 = %d, ingin 409 CONCURRENT_MODIFICATION", resp.StatusCode)
+	}
+	next := `{"display_name": "Toko Baju", "version": 1}`
+	if resp := do(t, app, call{method: http.MethodPut, path: "/v1/business-profile", body: next, cookie: admin}); resp.StatusCode != http.StatusOK {
+		t.Errorf("simpan dengan version terbaru = %d", resp.StatusCode)
+	}
+}
+
+// Halaman depan dibuka TANPA sesi dan membawa identitas bisnis pemasangan
+// ini: judul dan tag pratinjau tautan untuk layanan yang tidak menjalankan
+// JavaScript, dan datanya untuk frontend.
+func TestHomePageCarriesBusinessIdentity(t *testing.T) {
+	pool := testdb.New(t)
+	ctx := context.Background()
+	a, err := prepare(ctx, pool, config.Config{}, quiet)
+	if err != nil {
+		t.Fatal(err)
+	}
+	app := serve(t, a)
+	home := func() string {
+		t.Helper()
+		resp := do(t, app, call{method: http.MethodGet, path: "/"})
+		raw, _ := io.ReadAll(resp.Body)
+		// "/" adalah probe chart GONSU: selalu 200, tanpa sesi.
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("GET / = %d", resp.StatusCode)
+		}
+		return string(raw)
+	}
+
+	// Sebelum ada yang diisi: halaman build apa adanya, dengan mode pintu masuk.
+	page := home()
+	if !strings.Contains(page, "<title>Aplikasi</title>") || !strings.Contains(page, `"mode":"signin"`) || !strings.Contains(page, "halaman depan") {
+		t.Errorf("halaman depan sebelum diisi:\n%s", page)
+	}
+
+	// Administrator pemasangan ini mengisi profil dan menyalakan web perusahaan.
+	_, p := testdb.User(t, pool, a.org, authz.RoleAdministrator)
+	admin := sessionFor(t, pool, p, time.Hour)
+	for path, body := range map[string]string{"/v1/business-profile": profileBody, "/v1/website": websiteBody} {
+		if resp := do(t, app, call{method: http.MethodPut, path: path, body: body, cookie: admin}); resp.StatusCode != http.StatusOK {
+			t.Fatalf("PUT %s = %d", path, resp.StatusCode)
+		}
+	}
+
+	page = home()
+	for _, want := range []string{
+		"<title>Toko Baju Sejahtera — Pakaian rapi untuk setiap hari</title>",
+		`<meta property="og:title" content="Toko Baju Sejahtera — Pakaian rapi untuk setiap hari"/>`,
+		`<script id="gonsu-site" type="application/json">`,
+		`"mode":"site"`, `"whatsapp":"https://wa.me/6281234567890"`,
+		"halaman depan",
+	} {
+		if !strings.Contains(page, want) {
+			t.Errorf("halaman depan tidak memuat %s\n%s", want, page)
+		}
+	}
+	// NPWP ada di profil, dan tidak pernah di halaman publik.
+	if strings.Contains(page, "0012345678901000") || strings.Contains(page, "tax_id") {
+		t.Errorf("halaman depan memuat NPWP:\n%s", page)
+	}
+
+	// Data yang sama tersedia tanpa sesi di /site.json.
+	resp := do(t, app, call{method: http.MethodGet, path: "/site.json"})
+	var site struct {
+		Mode string `json:"mode"`
+		Name string `json:"name"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&site); err != nil || resp.StatusCode != http.StatusOK ||
+		site.Mode != "site" || site.Name != "Toko Baju Sejahtera" {
+		t.Errorf("GET /site.json = %d, %+v, %v", resp.StatusCode, site, err)
 	}
 }

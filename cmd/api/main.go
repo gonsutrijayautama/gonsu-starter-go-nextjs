@@ -133,6 +133,7 @@ func run(ctx context.Context, args []string, logger *slog.Logger) error {
 			Frontend: web.FS(),
 			Logger:   logger,
 			Routes:   routes,
+			Home:     a.modules.RenderHome,
 		}),
 		ReadHeaderTimeout: 10 * time.Second,
 	}

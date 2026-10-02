@@ -1,30 +1,33 @@
 import type { Metadata } from "next"
 
-import { site } from "@/lib/site"
-import { ContactSection } from "@/components/landing/contact-section"
-import { Hero } from "@/components/landing/hero"
-import { ServicesSection } from "@/components/landing/services-section"
-import { SiteFooter } from "@/components/landing/site-footer"
-import { SiteHeader } from "@/components/landing/site-header"
+import { product } from "@/lib/product"
+import { Home } from "@/components/landing/home"
 
-// Halaman publik "/": web perusahaan tenant sekaligus pintu masuk aplikasi.
-// Chart GONSU memakai "/" sebagai probe, jadi halaman ini tidak boleh
-// bergantung pada sesi maupun API — isinya dari lib/site.ts.
+// Halaman publik "/": web perusahaan bisnis ini sekaligus pintu masuk
+// aplikasi. Chart GONSU memakai "/" sebagai probe, jadi halaman ini tidak
+// boleh bergantung pada sesi maupun API.
+//
+// Identitas bisnisnya tidak ditulis di sini. Server Go menyisipkannya ke
+// halaman ini saat disajikan — termasuk judul dan deskripsi di bawah, yang
+// hanya bawaan sebelum profil bisnis diisi (lib/site.ts).
 export const metadata: Metadata = {
-  title: { absolute: site.name },
-  description: site.summary,
+  title: { absolute: product.name },
+  description: `Masuk ke ${product.name} dengan akun GONSU Anda.`,
 }
 
 export default function HomePage() {
   return (
-    <div className="flex min-h-svh flex-col">
-      <SiteHeader />
-      <main className="flex-1">
-        <Hero />
-        <ServicesSection />
-        <ContactSection />
-      </main>
-      <SiteFooter />
-    </div>
+    <>
+      <Home />
+      {/* Tanpa JavaScript halaman ini tetap pintu masuk. /auth/login dilayani
+          server Go, jadi <a>, bukan Link. */}
+      <noscript>
+        <p className="p-6 text-center text-sm">
+          <a href="/auth/login" className="underline underline-offset-4">
+            Masuk ke {product.name}
+          </a>
+        </p>
+      </noscript>
+    </>
   )
 }

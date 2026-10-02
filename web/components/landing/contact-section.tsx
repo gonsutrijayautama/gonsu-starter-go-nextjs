@@ -1,30 +1,41 @@
+"use client"
+
 import { ArrowUpRightIcon, ClockIcon, MailIcon, MapPinIcon, PhoneIcon, type LucideIcon } from "lucide-react"
 import { cn } from "cn"
 
-import { emailHref, phoneHref, site } from "@/lib/site"
+import { channelLinks, emailHref, phoneHref } from "@/lib/site"
 import { Frame, FramePanel } from "@/components/reui/frame"
 import { IconTile } from "@/components/reui/icon-tile"
 import { buttonVariants } from "@/components/ui/button"
 
 import { GridPattern, SectionHeading } from "./decor"
+import { siteSections } from "./sections"
+import { useSite, useSiteName } from "./site-context"
 
 interface ContactEntry {
   icon: LucideIcon
   label: string
   value: string
-  /** Kosong selama nilainya masih tempat isian: tautannya belum bisa dipakai. */
   href?: string
 }
 
-/** Alamat, telepon, email, dan jam kerja, di samping ilustrasi lokasi. */
+/**
+ * Alamat, telepon, email, jam kerja, dan kanal lain, di samping ilustrasi
+ * lokasi. Hanya yang diisi yang tampil.
+ */
 export function ContactSection() {
+  const site = useSite()
+  if (!siteSections(site).contact) return null
+
   const { contact } = site
   const entries: ContactEntry[] = [
-    { icon: MapPinIcon, label: "Alamat", value: contact.address },
+    // Alamat disembunyikan: kotanya saja yang tampil.
+    { icon: MapPinIcon, label: "Alamat", value: contact.address || contact.city },
     { icon: PhoneIcon, label: "Telepon", value: contact.phone, href: phoneHref(contact.phone) },
     { icon: MailIcon, label: "Email", value: contact.email, href: emailHref(contact.email) },
     { icon: ClockIcon, label: "Jam kerja", value: contact.hours },
-  ]
+  ].filter((entry) => entry.value)
+  const channels = channelLinks(site.channels)
 
   return (
     <section id="kontak" className="mx-auto max-w-6xl scroll-mt-16 px-4 pb-20 sm:px-6 lg:pb-28">
@@ -40,12 +51,29 @@ export function ContactSection() {
               <ContactItem key={entry.label} {...entry} />
             ))}
           </ul>
+          {channels.length > 0 ? (
+            <ul aria-label="Kanal lain" className="flex flex-wrap gap-2">
+              {channels.map((channel) => (
+                <li key={channel.label}>
+                  <a
+                    href={channel.href}
+                    target="_blank"
+                    rel="noreferrer"
+                    className={cn(buttonVariants({ variant: "outline" }))}
+                  >
+                    {channel.label}
+                    <ArrowUpRightIcon data-icon="inline-end" />
+                  </a>
+                </li>
+              ))}
+            </ul>
+          ) : null}
         </FramePanel>
         <FramePanel className="relative min-h-80 overflow-hidden bg-muted/60 p-0 lg:basis-0">
           <LocationIllustration />
-          {contact.mapUrl ? (
+          {contact.map_url ? (
             <a
-              href={contact.mapUrl}
+              href={contact.map_url}
               target="_blank"
               rel="noreferrer"
               className={cn(buttonVariants({ variant: "outline" }), "absolute right-4 bottom-4")}
@@ -85,9 +113,11 @@ function ContactItem({ icon: Icon, label, value, href }: ContactEntry) {
 /**
  * Peta gambaran, bukan peta sungguhan: menyematkan layanan peta pihak ketiga
  * mengirim alamat IP setiap pengunjung ke sana. Peta asli dibuka lewat
- * tombol "Buka di peta" (`site.contact.mapUrl`).
+ * tombol "Buka di peta" (tautan peta di pengaturan website).
  */
 function LocationIllustration() {
+  const site = useSite()
+  const name = useSiteName()
   return (
     <div aria-hidden="true" className="absolute inset-0">
       <GridPattern className="bg-size-[2rem_2rem]" />
@@ -98,8 +128,8 @@ function LocationIllustration() {
       <div className="absolute right-12 bottom-14 h-22 w-28 rounded-lg border bg-primary/5" />
       <div className="absolute top-1/2 left-1/2 flex -translate-x-1/2 -translate-y-3/4 flex-col items-center gap-3">
         <div className="rounded-xl border bg-card px-3.5 py-2.5 whitespace-nowrap shadow-lg">
-          <p className="text-sm font-semibold">{site.name}</p>
-          <p className="text-xs text-muted-foreground">{site.contact.city}</p>
+          <p className="text-sm font-semibold">{name}</p>
+          {site.contact.city ? <p className="text-xs text-muted-foreground">{site.contact.city}</p> : null}
         </div>
         <span className="flex size-9 items-center justify-center rounded-full bg-primary text-primary-foreground ring-8 ring-primary/15">
           <MapPinIcon className="size-4.5" />

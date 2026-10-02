@@ -34,20 +34,33 @@ Produk GONSU One, dibuat dengan `gonsu new`.
 - **Satu organization per pemasangan** — `internal/tenant`, satu-satunya
   sumber `organization_id`.
 - **Modul standar GONSU** — `internal/modules` memasang library
-  `gonsu-appkit-go`: profil bisnis (`/v1/business-profile`, layar Pengaturan →
-  Profil bisnis), logo sebagai berkas publik (`/media/{id}`), dan wilayah
-  Indonesia sampai desa (`/v1/regions`). Kodenya sama di setiap produk GONSU
-  dan di-upgrade lewat `go get`; yang diubah hanya izin
-  `settings.business.manage`.
+  `gonsu-appkit-go`. Kodenya sama di setiap produk GONSU dan di-upgrade lewat
+  `go get`; yang milik produk ini hanya pemetaan izinnya.
+  - **Profil bisnis** (`/v1/business-profile`, layar Pengaturan → Profil
+    bisnis): nama, kontak, NPWP, alamat, dan logo. Nama dan logonya tampil di
+    sidebar. Izin `settings.business.manage`.
+  - **Website** (`/v1/website`, layar Pengaturan → Website): halaman depan
+    publik — hanya pintu masuk (bawaan), atau web perusahaan dengan tentang,
+    layanan, kontak, dan kanal. Izin `settings.website.manage`.
+  - **Media** (`/media/{id}`): logo dan gambar halaman depan sebagai berkas
+    publik.
+  - **Wilayah** (`/v1/regions`): wilayah Indonesia sampai desa, untuk pemilih
+    alamat.
+- **Halaman depan membawa identitas bisnis** — server Go menyisipkan judul,
+  deskripsi, tag pratinjau tautan, dan datanya ke `/` saat disajikan
+  (`httpx.Options.Home`), jadi tautan yang dibagikan tampil dengan nama dan
+  logo bisnis, dan halamannya tidak memanggil API. Data yang sama ada di
+  `/site.json`. Simpan bersamaan dua orang dijaga `version`: yang belakangan
+  ditolak, tidak menimpa.
 - **Modul contoh Catatan** — `internal/notes` dan layar `web/app/(app)/notes`:
   pola lengkap satu modul bisnis, dari tabel sampai layar.
 - **Frontend** — Next.js di `web/`, di-build sebagai halaman statis lalu
   di-embed ke binary: satu binary, satu port, tanpa server Node. Kerangkanya
   sama dengan Console dan Portal GONSU One (sidebar, breadcrumb, menu akun,
   tema terang/gelap, toast di atas-tengah), seluruh komponen shadcn dan 22
-  komponen ReUI sudah terpasang, dan halaman bawaannya: web perusahaan tenant
-  di `/` (isinya di `web/lib/site.ts`), masuk, dasbor, Catatan, Pengaturan →
-  Profil bisnis, Pengguna & Akses, dan Lisensi, halaman 404.
+  komponen ReUI sudah terpasang, dan halaman bawaannya: halaman depan di `/`
+  (isinya dari pengaturan Website), masuk, dasbor, Catatan, Pengaturan →
+  Profil bisnis, Website, Pengguna & Akses, dan Lisensi, halaman 404.
 - **Panduan UI yang ditegakkan lint** — [web/docs/ui-guide.md](web/docs/ui-guide.md):
   komponen apa yang dipakai, pola formulir, toast, konfirmasi, warna, dan teks.
   `make lint` menolak pelanggarannya.
@@ -74,7 +87,7 @@ Build `dev` membawa **login pengembangan**: buka
 | Perintah | Kegunaan |
 |---|---|
 | `make run` | server Go build dev di 127.0.0.1:18080 (migrasi saat start) |
-| `make web-dev` | frontend dengan hot reload; `/v1` dan `/auth` diteruskan ke `make run` |
+| `make web-dev` | frontend dengan hot reload; `/v1`, `/auth`, `/media`, dan `/site.json` diteruskan ke `make run` |
 | `make build` | frontend lalu binary rilis ke `bin/app` |
 | `make db` / `make down` | menyalakan / menghentikan database lokal |
 | `make migrate` | menjalankan migrasi ke database lokal |
