@@ -37,6 +37,10 @@ const (
 	Core = "produk-contoh.core"
 	// UsersMax membatasi jumlah pengguna aktif pemasangan.
 	UsersMax = "users.max"
+	// StorageGB membatasi total penyimpanan berkas pemasangan, dalam GB
+	// (1 GB = 1.073.741.824 byte). Nama dan satuannya ditetapkan GONSU; hanya
+	// berlaku bila berkas disimpan di bucket dari platform (cmd/api/media.go).
+	StorageGB = "storage.gb"
 )
 
 // Resolver menjawab hak komersial pemasangan ini.

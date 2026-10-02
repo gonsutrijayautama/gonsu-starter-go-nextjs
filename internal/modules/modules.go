@@ -33,6 +33,7 @@ import (
 	"github.com/gonsutrijayautama/gonsu-starter-go-nextjs/internal/apperr"
 	"github.com/gonsutrijayautama/gonsu-starter-go-nextjs/internal/authn"
 	"github.com/gonsutrijayautama/gonsu-starter-go-nextjs/internal/authz"
+	"github.com/gonsutrijayautama/gonsu-starter-go-nextjs/internal/entitlement"
 	"github.com/gonsutrijayautama/gonsu-starter-go-nextjs/internal/httpx"
 	"github.com/gonsutrijayautama/gonsu-starter-go-nextjs/internal/tenant"
 )
@@ -65,6 +66,10 @@ type Options struct {
 	// Berkas yang isinya sudah di database tetap terbaca setelah penyimpanan
 	// lain dipasang.
 	MediaStore media.Store
+	// MediaQuota mengembalikan batas TOTAL penyimpanan sebuah organization
+	// dalam byte: media.Unlimited untuk tanpa batas, nol untuk tidak boleh
+	// menyimpan. Kosong: tanpa batas.
+	MediaQuota func(ctx context.Context, org uuid.UUID) (int64, error)
 }
 
 // New menyiapkan modul standar. Dipanggil sekali saat start. installation
@@ -78,7 +83,7 @@ func New(pool *pgxpool.Pool, installation uuid.UUID, logger *slog.Logger, opts O
 			httpx.WriteError(w, r, logger, translate(err))
 		},
 	}
-	files, err := media.New(pool, hooks, media.Options{Store: opts.MediaStore})
+	files, err := media.New(pool, hooks, media.Options{Store: opts.MediaStore, Quota: opts.MediaQuota})
 	if err != nil {
 		return nil, err
 	}
@@ -169,6 +174,12 @@ func translate(err error) error {
 		return apperr.NotFound(e.Message)
 	case appkit.KindConflict:
 		return apperr.ConcurrentModification(e.Message)
+	case appkit.KindQuotaExceeded:
+		// Batas paket penuh, seperti users.max: frontend menawarkan naik
+		// paket. Pesannya milik library — ia yang tahu pemakaian dan batasnya.
+		quota := apperr.EntitlementRequired(entitlement.StorageGB)
+		quota.Message = e.Message
+		return quota
 	}
 	// Jenis galat yang belum dikenal produk ini: perlakukan sebagai galat tak
 	// terduga, jangan menebak status HTTP-nya.

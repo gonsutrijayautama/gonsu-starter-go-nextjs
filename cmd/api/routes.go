@@ -74,7 +74,10 @@ func prepare(ctx context.Context, pool *pgxpool.Pool, cfg config.Config, logger 
 	if err != nil {
 		return app{}, err
 	}
-	standard, err := modules.New(pool, inst.OrganizationID, logger, modules.Options{MediaStore: store})
+	standard, err := modules.New(pool, inst.OrganizationID, logger, modules.Options{
+		MediaStore: store,
+		MediaQuota: mediaQuota(kit.Mode(), cfg.ObjectStorage, kit.License()),
+	})
 	if err != nil {
 		return app{}, err
 	}

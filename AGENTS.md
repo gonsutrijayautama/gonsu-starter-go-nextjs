@@ -169,8 +169,14 @@ Profil bisnis, website, media, dan wilayah datang dari library
   seperti `DATABASE_*`: jangan mengganti atau menambah nama untuk nilai yang
   sama. Modul yang menyimpan berkas memakai `Media` dari `modules.Standard`
   dan tidak perlu tahu penyimpanannya; jangan memanggil klien S3 langsung.
-  Kuota penyimpanan belum dipasang. Test-nya `TestLogoOnObjectStorage` dan
-  `TestLoadObjectStorage`.
+  Test-nya `TestLogoOnObjectStorage` dan `TestLoadObjectStorage`.
+- **Kuota penyimpanan adalah hak pakai `storage.gb`** (`mediaQuota` di
+  `cmd/api/media.go`), dan HANYA berlaku untuk bucket dari GONSU: mode cloud
+  dengan `STORAGE_*` terisi. Jangan membaca hak pakai itu di jalur lain —
+  paket yang tidak membawanya dijawab nol, dan nol menolak setiap unggahan.
+  Yang penuh dijawab `ENTITLEMENT_REQUIRED`. Modul yang mengganti berkas
+  memakai `SaveReplacing` supaya pengganti tidak dihitung dua kali. Test-nya
+  `TestMediaQuotaAppliesOnlyToPlatformBucket` dan `TestStorageQuotaOverHTTP`.
 - **Izin library dipetakan di `permissions`** (`internal/modules`). Izin
   library yang belum dipetakan ditolak, jadi modul baru dari library tidak
   terbuka hanya karena di-upgrade.
@@ -230,7 +236,7 @@ Kode tidak mengenal nama paket; kode hanya membaca **key hak pakai**.
    - di dalam service: `Feature(ctx, key)` dari `entitlement.Resolver` yang
      diterima lewat konstruktor service, seperti `authn.NewUserAdmin`;
    - batas angka: `Limit(ctx, key)` — contohnya `users.max` di
-     `internal/authn/users.go`.
+     `internal/authn/users.go` dan `storage.gb` di `cmd/api/media.go`.
 4. Tidak perlu menulis tawaran upgrade: penolakan `ENTITLEMENT_REQUIRED` di
    frontend otomatis menawarkan "Lihat paket" kepada administrator (`ApiFailure`
    dan toast gagal), lewat `/auth/gonsu/portal/plans` milik kit GONSU.
