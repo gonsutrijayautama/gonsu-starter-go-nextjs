@@ -259,6 +259,8 @@ Jangan pernah `if plan == "pro"`.
 - **`release.yml` hanya dipicu tag, dan hanya memanggil.** Jangan menambahkan
   trigger `pull_request` atau `push` ke branch — GONSU hanya menandatangani
   rilis yang dipicu tag — dan jangan menyalin langkah rilis ke dalamnya.
+  Job-nya wajib tetap punya `id-token: write`: tanpa itu GitHub menolak
+  workflow sebelum berjalan.
 - **Tanpa rahasia di repository.** Nilai rahasia datang dari environment yang
   diisi GONSU atau operator.
 

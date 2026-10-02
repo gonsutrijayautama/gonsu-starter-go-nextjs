@@ -137,8 +137,9 @@ dibangun repository ini, dari tag itu.
    `web`, hak pakai `produk-contoh.core` dan `users.max`, paket beserta
    mode pemasangannya, harga, lalu umumkan. Kode produk dan variant harus sama
    persis dengan `product_code` dan `variant_code` di `release.yml`.
-2. **Satu secret repo**: `GONSU_REGISTRY_CI_TOKEN`, token dorong registry,
-   diberikan tim platform.
+2. **Satu secret repo**: `GONSU_REGISTRY_CI_TOKEN`, token dorong registry.
+   Tim platform yang mengisinya di repository ini; tim produk tidak membuat
+   token itu sendiri.
 3. **Repository ini berada di akun GitHub yang dipercaya platform.** Rilis
    dari akun lain ditolak.
 
