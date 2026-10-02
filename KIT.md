@@ -84,10 +84,11 @@ yang dibuat siapa pun sudah membawanya.
 - Project hasil mencatat asalnya di `.gonsu/kit.json` (kit dan commit-nya).
   Selisih commit itu dengan `main` adalah catatan naik versi bagi produk yang
   sudah berjalan: `git diff <commit> main`.
-- **Tag hanya penanda dan berawalan `kit-`**: `kit-v0.1.0`. Pasang saat ada
-  titik yang layak dirujuk. JANGAN memakai tag `v*` di repository ini — tag
-  `v*` memicu `release.yml`, pipeline rilis produk.
-  `gonsu new --kit-version kit-v0.1.0` mengambil keadaan pada tag itu.
+- **Versi kit adalah tag berawalan `kit-`**: `kit-v0.1.0`. Pasang saat ada
+  titik yang layak dirujuk; `gonsu new toko --version 0.1.0` mengambil keadaan
+  pada tag itu. JANGAN memakai tag `v*` di repository ini — tag `v*` memicu
+  `release.yml`, pipeline rilis produk. Pemakai cukup menulis nomornya; gonsu
+  yang menambahkan awalan `kit-v`.
 - Yang harus sama di SETIAP produk tidak hidup sebagai kode salinan di sini,
   melainkan di paket berversi: login dan lisensi di `gonsu-one-sdk-go`, modul
   standar di `gonsu-appkit-go`. Perbaikan di sana sampai ke produk lewat
@@ -101,7 +102,7 @@ yang dibuat siapa pun sudah membawanya.
 3. Coba dari sisi pemakai, dari folder lain:
    `gonsu new uji-kit --kit-source /path/ke/repository/ini`, lalu `make test`
    di hasilnya. Cabang yang sudah didorong:
-   `gonsu new uji-kit --kit-version nama-cabang`.
+   `gonsu new uji-kit --version nama-cabang`.
 4. `README.md` dan `AGENTS.md` masih cocok dengan kodenya
    (`TestDocsReferToExistingCode`).
 
