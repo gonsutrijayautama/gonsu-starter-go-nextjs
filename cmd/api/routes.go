@@ -70,7 +70,7 @@ func prepare(ctx context.Context, pool *pgxpool.Pool, cfg config.Config, logger 
 	sessions := authn.NewSessions(pool, kit, cfg.OIDCRecheck, logger)
 	login.Bind(kit, inst.OrganizationID, sessions)
 
-	store, err := mediaStore(ctx, cfg.MediaStorage, logger)
+	store, err := mediaStore(ctx, cfg.ObjectStorage, logger)
 	if err != nil {
 		return app{}, err
 	}

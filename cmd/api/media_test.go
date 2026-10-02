@@ -58,16 +58,16 @@ func (f *fakeBucket) len() int {
 	return len(f.objects)
 }
 
-func bucketConfig(endpoint, bucket string) config.MediaStorage {
-	return config.MediaStorage{
+func bucketConfig(endpoint, bucket string) config.ObjectStorage {
+	return config.ObjectStorage{
 		Endpoint: endpoint, Region: "auto", Bucket: bucket,
 		AccessKeyID: "kunci", SecretAccessKey: "rahasia", PathStyle: true,
 	}
 }
 
-// Tanpa konfigurasi object storage, isi berkas media disimpan di database.
+// Tanpa konfigurasi penyimpanan objek, isi berkas media disimpan di database.
 func TestMediaStoreDefaultsToDatabase(t *testing.T) {
-	store, err := mediaStore(context.Background(), config.MediaStorage{}, quiet)
+	store, err := mediaStore(context.Background(), config.ObjectStorage{}, quiet)
 	if err != nil || store != nil {
 		t.Errorf("mediaStore tanpa konfigurasi = %v, %v; ingin nil, nil", store, err)
 	}
@@ -90,7 +90,7 @@ func TestMediaStoreChecksBucketAtStart(t *testing.T) {
 	}
 }
 
-// Dengan object storage dikonfigurasi, logo yang diunggah lewat API masuk ke
+// Dengan penyimpanan objek dikonfigurasi, logo yang diunggah lewat API masuk ke
 // bucket — bukan ke database — dan tetap disajikan di /media/{id} tanpa sesi.
 func TestLogoOnObjectStorage(t *testing.T) {
 	bucket := &fakeBucket{objects: map[string][]byte{}}
@@ -98,9 +98,7 @@ func TestLogoOnObjectStorage(t *testing.T) {
 	defer srv.Close()
 
 	pool := testdb.New(t)
-	storage := bucketConfig(srv.URL, "berkas")
-	storage.Prefix = "aplikasi/"
-	app := newAppWith(t, pool, config.Config{MediaStorage: storage})
+	app := newAppWith(t, pool, config.Config{ObjectStorage: bucketConfig(srv.URL, "berkas")})
 	_, a := testdb.Tenant(t, pool, authz.RoleAdministrator)
 	admin := sessionFor(t, pool, a, time.Hour)
 	logo := logoPNG(t)
@@ -114,8 +112,9 @@ func TestLogoOnObjectStorage(t *testing.T) {
 	if bucket.len() != 1 {
 		t.Errorf("isi di bucket = %d, ingin 1", bucket.len())
 	}
-	// Key-nya <awalan><organization>/<id berkas>.
-	wantPrefix := "/aplikasi/" + a.OrganizationID.String() + "/"
+	// Key-nya <organization>/<id berkas>, tanpa awalan: satu bucket hanya
+	// dipakai satu pemasangan.
+	wantPrefix := "/" + a.OrganizationID.String() + "/"
 	for key := range bucket.objects {
 		if !strings.HasPrefix(key, wantPrefix) {
 			t.Errorf("key = %q, ingin berawalan %q", key, wantPrefix)
