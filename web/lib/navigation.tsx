@@ -1,4 +1,4 @@
-import { Building2Icon, GlobeIcon, KeyRoundIcon, LayoutDashboardIcon, NotebookPenIcon, UsersIcon } from "lucide-react"
+import { Building2Icon, GlobeIcon, KeyRoundIcon, LayoutDashboardIcon, NotebookPenIcon, PanelsTopLeftIcon, UsersIcon } from "lucide-react"
 
 import type { AppSidebarSection } from "@/components/app-shell/app-sidebar"
 import type { NavItem } from "@/components/app-shell/nav-main"
@@ -57,6 +57,14 @@ export const sections: AppSection[] = [
             permission: Permission.SettingsWebsiteManage,
             description: "Halaman depan publik: layanan, kanal, dan tampilannya saat dibagikan.",
           },
+          {
+            // PROTOTIPE penyusun halaman. Kelak izinnya settings.pages.manage.
+            title: "Halaman",
+            url: "/settings/pages/",
+            icon: <PanelsTopLeftIcon />,
+            permission: Permission.SettingsWebsiteManage,
+            description: "Susun beranda dan halaman lain situs Anda.",
+          },
         ],
       },
       {
@@ -93,6 +101,7 @@ export const breadcrumbLabels: Record<string, string> = {
   settings: "Pengaturan",
   business: "Profil bisnis",
   website: "Website",
+  pages: "Halaman",
   users: "Pengguna & Akses",
   license: "Lisensi",
 }

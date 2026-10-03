@@ -34,7 +34,7 @@ function HomeContent() {
 }
 
 /** Web perusahaan: pembuka, tentang dan layanan, kontak. */
-function CompanySite() {
+export function CompanySite() {
   return (
     <div className="flex min-h-svh flex-col">
       <SiteHeader />
@@ -49,7 +49,7 @@ function CompanySite() {
 }
 
 /** Hanya pintu masuk: bisnis ini tidak memajang web publik. */
-function SignInOnly() {
+export function SignInOnly() {
   const name = useSiteName()
   return (
     <div className="flex min-h-svh flex-col">

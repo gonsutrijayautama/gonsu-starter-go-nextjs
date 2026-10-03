@@ -1,0 +1,73 @@
+/*
+ * Editor Puck mengikuti token warna aplikasi (app/globals.css), sehingga tema
+ * terang dan gelap berlaku juga di panel, kepala, dan daftar blok editor.
+ *
+ * Token Puck ada di `@layer puck-tokens`; aturan tanpa layer di sini otomatis
+ * menang tanpa `!important`. Tidak ada warna baru di sini: semuanya menunjuk
+ * token aplikasi, jadi mengganti warna produk di globals.css ikut mengubah
+ * editornya.
+ */
+:root {
+  --puck-color-surface: var(--card);
+  --puck-color-surface-muted: var(--muted);
+  --puck-color-surface-subtle: var(--background);
+  /* Label blok terpilih dan tooltip: gelap di kedua tema, seperti toast. */
+  --puck-color-surface-inverse: var(--invert);
+  --puck-color-border: var(--border);
+  --puck-color-border-hover: var(--ring);
+  --puck-color-border-muted: var(--border);
+  --puck-color-border-inverse: var(--ring);
+  --puck-color-text: var(--foreground);
+  --puck-color-text-secondary: color-mix(in oklch, var(--foreground) 70%, var(--muted-foreground));
+  --puck-color-text-muted: var(--muted-foreground);
+  --puck-color-text-subtle: var(--muted-foreground);
+  --puck-color-text-inverse: var(--invert-foreground);
+  --puck-color-interactive: var(--sidebar-primary);
+  --puck-color-interactive-hover: color-mix(in oklch, var(--sidebar-primary) 85%, var(--foreground));
+  --puck-color-interactive-active: color-mix(in oklch, var(--sidebar-primary) 70%, var(--foreground));
+  --puck-color-interactive-subtle: color-mix(in oklch, var(--sidebar-primary) 12%, var(--card));
+  --puck-color-interactive-soft: color-mix(in oklch, var(--sidebar-primary) 8%, var(--card));
+  --puck-color-interactive-soft-hover: color-mix(in oklch, var(--sidebar-primary) 16%, var(--card));
+  --puck-color-interactive-neutral-hover: var(--accent);
+  --puck-color-interactive-inverse-hover: color-mix(in oklch, var(--sidebar-primary) 80%, var(--background));
+  --puck-color-interactive-inverse-active: color-mix(in oklch, var(--sidebar-primary) 65%, var(--background));
+  --puck-color-focus-ring: var(--ring);
+  --puck-color-selection-bg: color-mix(in oklch, var(--sidebar-primary) 14%, transparent);
+  --puck-color-selection-border: var(--sidebar-primary);
+  --puck-color-line-placeholder: var(--sidebar-primary);
+  --puck-color-highlight: var(--destructive);
+  --puck-color-bg-disabled: var(--muted);
+  --puck-color-text-disabled: var(--muted-foreground);
+  --puck-font-family: var(--font-sans);
+  /* Radius bagian Puck yang tersisa (daftar butir, teks kaya) sama dengan aplikasi. */
+  --puck-radius-s: calc(var(--radius) * 0.6);
+  --puck-radius-m: calc(var(--radius) * 0.8);
+  --puck-radius-l: var(--radius);
+}
+
+/*
+ * Beberapa bagian Puck masih memakai palet mentahnya (abu-abu dan biru) di
+ * luar token semantik. Di tema gelap palet itu diarahkan ke token aplikasi,
+ * supaya tidak ada bidang putih atau teks gelap di atas latar gelap.
+ */
+.dark {
+  color-scheme: dark;
+  --puck-color-grey-01: var(--foreground);
+  --puck-color-grey-02: var(--foreground);
+  --puck-color-grey-03: var(--foreground);
+  --puck-color-grey-04: color-mix(in oklch, var(--foreground) 70%, var(--muted-foreground));
+  --puck-color-grey-05: var(--muted-foreground);
+  --puck-color-grey-06: var(--muted-foreground);
+  --puck-color-grey-07: color-mix(in oklch, var(--muted-foreground) 70%, var(--border));
+  --puck-color-grey-08: var(--input);
+  --puck-color-grey-09: var(--border);
+  --puck-color-grey-10: var(--accent);
+  --puck-color-grey-11: var(--muted);
+  --puck-color-grey-12: var(--card);
+  --puck-color-azure-08: color-mix(in oklch, var(--sidebar-primary) 45%, var(--card));
+  --puck-color-azure-09: color-mix(in oklch, var(--sidebar-primary) 30%, var(--card));
+  --puck-color-azure-10: color-mix(in oklch, var(--sidebar-primary) 18%, var(--card));
+  --puck-color-azure-11: color-mix(in oklch, var(--sidebar-primary) 10%, var(--card));
+  --puck-color-azure-12: color-mix(in oklch, var(--sidebar-primary) 6%, var(--card));
+  --puck-color-white: var(--card);
+}
