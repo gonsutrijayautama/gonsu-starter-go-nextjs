@@ -196,6 +196,35 @@ func TestLoadPassesGonsuToKit(t *testing.T) {
 	}
 }
 
+// Kunci Pixabay milik produk: opsional, dan spasi atau baris baru dari berkas
+// secret tidak ikut menjadi bagian kuncinya.
+func TestLoadPixabayAPIKey(t *testing.T) {
+	cfg, err := Load(env(map[string]string{"DATABASE_URL": dbOnly}))
+	if err != nil || cfg.PixabayAPIKey != "" {
+		t.Errorf("tanpa kunci: %q, %v", cfg.PixabayAPIKey, err)
+	}
+	cfg, err = Load(env(map[string]string{"DATABASE_URL": dbOnly, "APP_PIXABAY_API_KEY": " kunci-123\n"}))
+	if err != nil || cfg.PixabayAPIKey != "kunci-123" {
+		t.Errorf("kunci = %q, %v", cfg.PixabayAPIKey, err)
+	}
+}
+
+// Asisten AI milik produk: opsional seluruhnya, dan spasi atau baris baru dari
+// berkas secret tidak ikut menjadi bagian nilainya.
+func TestLoadAI(t *testing.T) {
+	cfg, err := Load(env(map[string]string{"DATABASE_URL": dbOnly}))
+	if err != nil || cfg.AI != (AI{}) {
+		t.Errorf("tanpa variabel AI: %+v, %v", cfg.AI, err)
+	}
+	cfg, err = Load(env(map[string]string{
+		"DATABASE_URL": dbOnly, "APP_AI_API_KEY": " kunci-ai\n", "APP_AI_BASE_URL": " https://ai.example/v1 ", "APP_AI_MODEL": "penyedia/model\n",
+	}))
+	want := AI{APIKey: "kunci-ai", BaseURL: "https://ai.example/v1", Model: "penyedia/model"}
+	if err != nil || cfg.AI != want {
+		t.Errorf("AI = %+v, %v; want %+v", cfg.AI, err, want)
+	}
+}
+
 // Build dev mendahulukan GONSU di /auth/login hanya bila pemasangan ini diberi
 // login GONSU.
 func TestGonsuLoginConfigured(t *testing.T) {

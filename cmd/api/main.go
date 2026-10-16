@@ -118,6 +118,9 @@ func run(ctx context.Context, args []string, logger *slog.Logger) error {
 		slog.String("organization_id", a.org.String()),
 		slog.String("mode", string(a.kit.Mode())),
 		slog.Bool("login_gonsu", a.gonsuLogin))
+	if a.ai.Configured() {
+		logger.Info("asisten AI halaman aktif", slog.String("model", a.ai.Model()))
+	}
 	if authn.DevLoginEnabled() {
 		logger.Warn("BUILD PENGEMBANGAN: login pengembangan aktif di /auth/login. Binary ini tidak boleh dirilis.")
 	}

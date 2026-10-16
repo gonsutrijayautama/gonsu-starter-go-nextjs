@@ -32,7 +32,9 @@ aplikasinya**: modul, data, dan layar yang dipakai pelanggan.
 | `internal/idempotency` | `Idempotency-Key` untuk pembuatan data |
 | `internal/modules` | **modul standar GONSU** dari library `gonsu-appkit-go`: profil bisnis, website, media, wilayah — hanya perekatnya yang ada di sini |
 | `internal/notes` | **modul contoh Catatan** — pola yang ditiru setiap modul baru |
+| `internal/pageai` | **percobaan** — asisten AI di penyusun halaman: kunci model di server, dan jawaban model dialirkan ke layar sebagai perintah yang mengubah halaman |
 | `internal/security` | test yang membaca kode: setiap izin ditegakkan, setiap query menyaring tenant |
+| `internal/stockmedia` | foto dan video Pixabay untuk penyusun halaman: kunci API di server, jawaban di-cache 24 jam, foto diunduh sebelum dipakai |
 | `internal/storage` | koneksi PostgreSQL dan migrasi |
 | `internal/tenant` | organization pemasangan — satu-satunya sumber `organization_id` |
 | `internal/testdb` | database test dan pembuat pengguna test |
