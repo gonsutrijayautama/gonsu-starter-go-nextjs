@@ -110,9 +110,13 @@ test("Backspace dan Delete di dalam teks tidak menghapus blok, dan urungkan meng
   await expect(blocks).toHaveCount(2)
   await expect(body.locator("strong")).toContainText("Penting")
 
-  await page.getByRole("button", { name: "Urungkan", exact: true }).click()
+  // Riwayat Puck mencatat ketikan dengan jeda dan bisa menggabungkan beberapa ketikan menjadi satu
+  // langkah; berapa langkahnya bergantung pada kecepatan mesin. Satu kali urungkan sesudah jeda itu
+  // selalu membatalkan ketikan terakhir, dan tidak pernah membuang bloknya.
+  await page.waitForTimeout(800)
   await page.getByRole("button", { name: "Urungkan", exact: true }).click()
   await expect(blocks).toHaveCount(2)
+  await expect(body.locator("strong")).toHaveCount(0)
 })
 
 test("tidak ada teks [object Object] di kanvas saat isian dijadikan teks ketik-langsung", async ({ page }) => {
