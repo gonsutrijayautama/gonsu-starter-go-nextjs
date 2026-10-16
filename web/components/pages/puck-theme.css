@@ -71,3 +71,39 @@
   --puck-color-azure-12: color-mix(in oklch, var(--sidebar-primary) 6%, var(--card));
   --puck-color-white: var(--card);
 }
+
+/*
+ * Teks yang bisa diketik langsung di kanvas (contentEditable Puck), dibungkus
+ * `[data-inline-hint]` (blocks.tsx `editable`). Petunjuk dan tempat mengetik
+ * menumpuk di satu sel grid: lebarnya selebar petunjuk saat kosong, dan
+ * petunjuknya hilang begitu ada isinya. Warnanya mengikuti teks di sekitarnya,
+ * supaya terbaca juga di latar warna utama.
+ */
+[data-inline-hint] {
+  display: inline-grid;
+  max-width: 100%;
+}
+/* Petunjuk memakai ::before (butir pertama grid): garis dasar sel diambil darinya
+   selama tempat mengetik kosong, jadi sejajar dengan teks di sebelahnya. */
+[data-inline-hint] > [contenteditable],
+[data-inline-hint]::before {
+  grid-area: 1 / 1;
+}
+[data-inline-hint] > [contenteditable] {
+  min-width: 1ch;
+  min-height: 1lh;
+}
+[data-inline-hint]:has(> [contenteditable]:empty)::before {
+  content: attr(data-inline-hint);
+  overflow: hidden;
+  font-style: italic;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  opacity: 0.55;
+  pointer-events: none;
+}
+/* Puck memberi teks inline `white-space: pre-wrap`; di wadah yang tidak boleh membungkus, ikuti wadahnya. */
+:is(.truncate, .whitespace-nowrap) > [contenteditable],
+:is(.truncate, .whitespace-nowrap) > [data-inline-hint] > [contenteditable] {
+  white-space: inherit;
+}

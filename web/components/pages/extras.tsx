@@ -9,11 +9,13 @@ import { IconTile } from "@/components/reui/icon-tile"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Dialog, DialogContent, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 
-import { BlockImage, elementFrame, type BlockProps } from "./blocks"
+import { BlockImage, elementFrame, orHint, shownItems, type BlockProps } from "./blocks"
 import { DeviceFrame, Marquee, type DeviceKind } from "./effects"
 import { textOn } from "./appearance"
 import { initials, type Align } from "./elements"
+import { MediaPickButton, useMediaPick } from "./media-picker"
 import { PageIcon } from "./page-icon"
+import { videoSource, youtubePoster } from "./video-source"
 
 // Komponen media dan efek bergaya Magic UI: video dengan dialog (Hero Video
 // Dialog), tumpukan avatar (Avatar Circles), ikon mengorbit (Orbiting
@@ -29,42 +31,57 @@ function SiteIcon({ name }: { name: string }) {
 
 export type VideoProps = { url: string; title: string; thumbnail: string | null; style: "dialog" | "inline"; frame: DeviceKind }
 
-/** id video dari tautan YouTube (watch, youtu.be, embed, shorts). Tautan lain ditolak. */
-export function youtubeId(url: string): string | null {
-  const match = /^https:\/\/(?:www\.|m\.)?(?:youtube\.com\/(?:watch\?(?:.*&)?v=|embed\/|shorts\/)|youtu\.be\/)([A-Za-z0-9_-]{11})/.exec(url.trim())
-  return match?.[1] ?? null
-}
-
-export function VideoBlock({ url, title, thumbnail, style, frame, puck }: BlockProps<VideoProps>) {
-  const id = youtubeId(url)
-  if (!id) {
+/**
+ * Video dari YouTube atau dari pustaka Pixabay. Dengan `field` (jalur isian
+ * alamatnya di props blok), videonya bisa dipilih atau diganti dari kanvas.
+ */
+export function VideoBlock({ url, title, thumbnail, style, frame, puck, field }: BlockProps<VideoProps> & { field?: string }) {
+  const source = videoSource(url)
+  const pick = useMediaPick(puck, field, "video")
+  if (!source) {
     if (!puck.isEditing) return null
     return (
       <div className={elementFrame}>
-        <div className="flex aspect-video flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-muted-foreground/40 bg-muted text-sm text-muted-foreground">
+        <div
+          {...pick}
+          aria-label={pick ? "Pilih video" : undefined}
+          className={cn(
+            "flex aspect-video flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-muted-foreground/40 bg-muted p-4 text-center text-sm text-muted-foreground",
+            pick && "cursor-pointer outline-none hover:border-primary hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
+          )}
+        >
           <VideoIcon aria-hidden="true" className="size-6" />
-          Tempel tautan video YouTube di isian.
+          {pick ? "Klik untuk memilih video dari pustaka atau YouTube." : "Pilih video dari pustaka atau tempel tautan YouTube di isian."}
         </div>
       </div>
     )
   }
-  // youtube-nocookie: YouTube tidak memasang cookie pelacak sebelum video diputar.
-  const embed = `https://www.youtube-nocookie.com/embed/${id}`
   const label = title || "Video"
+  // youtube-nocookie: YouTube tidak memasang cookie pelacak sebelum video diputar.
+  const embed = source.kind === "youtube" ? `https://www.youtube-nocookie.com/embed/${source.id}` : null
+  const change = <MediaPickButton puck={puck} field={field} filled kind="video" className="top-3 right-3" />
 
   if (style === "inline") {
+    const shape = cn("aspect-video w-full", frame === "none" || !frame ? "rounded-xl border" : "")
     return (
       <div className={elementFrame}>
-        <DeviceFrame kind={frame}>
-          <iframe
-            src={embed}
-            title={label}
-            loading="lazy"
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-            allowFullScreen
-            className={cn("aspect-video w-full", frame === "none" || !frame ? "rounded-xl border" : "")}
-          />
-        </DeviceFrame>
+        <div className="relative">
+          <DeviceFrame kind={frame}>
+            {embed ? (
+              <iframe
+                src={embed}
+                title={label}
+                loading="lazy"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allowFullScreen
+                className={shape}
+              />
+            ) : (
+              <video src={url.trim()} poster={thumbnail ?? undefined} controls playsInline preload="metadata" aria-label={label} className={cn(shape, "bg-muted object-cover")} />
+            )}
+          </DeviceFrame>
+          {change}
+        </div>
       </div>
     )
   }
@@ -73,8 +90,11 @@ export function VideoBlock({ url, title, thumbnail, style, frame, puck }: BlockP
     <span className="group relative block overflow-hidden rounded-xl">
       {thumbnail ? (
         <BlockImage src={thumbnail} alt="" className="aspect-video w-full rounded-none border-0" puck={puck} />
+      ) : source.kind === "youtube" ? (
+        <Image src={youtubePoster(source.id)} alt="" width={1280} height={720} unoptimized className="aspect-video w-full object-cover" />
       ) : (
-        <Image src={`https://i.ytimg.com/vi/${id}/hqdefault.jpg`} alt="" width={1280} height={720} unoptimized className="aspect-video w-full object-cover" />
+        // Tanpa gambar sampul: bingkai pertama videonya.
+        <video src={`${source.url}#t=0.1`} muted playsInline preload="metadata" aria-hidden="true" tabIndex={-1} className="aspect-video w-full bg-muted object-cover" />
       )}
       <span className="absolute inset-0 flex items-center justify-center bg-black/10 transition-colors group-hover:bg-black/20">
         <span className="flex size-16 items-center justify-center rounded-full bg-background/80 shadow-lg ring-8 ring-background/30 backdrop-blur transition-transform group-hover:scale-110">
@@ -86,28 +106,35 @@ export function VideoBlock({ url, title, thumbnail, style, frame, puck }: BlockP
 
   return (
     <div className={elementFrame}>
-      <DeviceFrame kind={frame}>
-        {/* Di editor klik memilih blok, jadi videonya tidak dibuka. */}
-        {puck.isEditing ? (
-          poster
-        ) : (
-          <Dialog>
-            <DialogTrigger aria-label={`Putar video: ${label}`} className="block w-full cursor-pointer rounded-xl text-left">
-              {poster}
-            </DialogTrigger>
-            <DialogContent className="max-w-4xl overflow-hidden p-0 sm:max-w-4xl">
-              <DialogTitle className="sr-only">{label}</DialogTitle>
-              <iframe
-                src={`${embed}?autoplay=1`}
-                title={label}
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                allowFullScreen
-                className="aspect-video w-full"
-              />
-            </DialogContent>
-          </Dialog>
-        )}
-      </DeviceFrame>
+      <div className="relative">
+        <DeviceFrame kind={frame}>
+          {/* Di editor klik memilih blok, jadi videonya tidak dibuka. */}
+          {puck.isEditing ? (
+            poster
+          ) : (
+            <Dialog>
+              <DialogTrigger aria-label={`Putar video: ${label}`} className="block w-full cursor-pointer rounded-xl text-left">
+                {poster}
+              </DialogTrigger>
+              <DialogContent className="max-w-4xl overflow-hidden p-0 sm:max-w-4xl">
+                <DialogTitle className="sr-only">{label}</DialogTitle>
+                {embed ? (
+                  <iframe
+                    src={`${embed}?autoplay=1`}
+                    title={label}
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    allowFullScreen
+                    className="aspect-video w-full"
+                  />
+                ) : (
+                  <video src={url.trim()} controls autoPlay playsInline aria-label={label} className="aspect-video w-full bg-muted" />
+                )}
+              </DialogContent>
+            </Dialog>
+          )}
+        </DeviceFrame>
+        {change}
+      </div>
     </div>
   )
 }
@@ -131,7 +158,11 @@ export function dicebearAvatar(name: string): string {
   return `https://api.dicebear.com/9.x/notionists/svg?seed=${encodeURIComponent(name || "pelanggan")}&backgroundColor=b6e3f4,c0aede,d1d4f9,ffd5dc,ffdfbf`
 }
 
-export function AvatarStackBlock({ people, more, caption, align, avatar_style }: BlockProps<AvatarStackProps>) {
+export function AvatarStackBlock({ people: all, more, caption, align, avatar_style, puck }: BlockProps<AvatarStackProps>) {
+  // Orang tanpa nama dan foto belum diisi: di editor tampil sebagai lingkaran kosong.
+  const people = shownItems(all, (person) => Boolean(person.name.trim() || person.image), puck)
+  const note = orHint(caption, "Keterangan, mis. siapa saja mereka", puck)
+  if (people.length === 0 && !more.trim() && !note) return null
   return (
     <div className={cn(elementFrame, "flex flex-wrap items-center gap-3", justify[align])}>
       <div className="flex -space-x-2 *:data-[slot=avatar]:bg-background">
@@ -139,7 +170,7 @@ export function AvatarStackBlock({ people, more, caption, align, avatar_style }:
           <Avatar key={index} size="lg" className="ring-2 ring-background">
             {person.image ? (
               <AvatarImage src={person.image} alt={person.name} />
-            ) : (avatar_style ?? "notionists") === "notionists" ? (
+            ) : (avatar_style ?? "notionists") === "notionists" && person.name.trim() ? (
               <AvatarImage src={dicebearAvatar(person.name)} alt={person.name} />
             ) : null}
             <AvatarFallback>{initials(person.name)}</AvatarFallback>
@@ -151,7 +182,7 @@ export function AvatarStackBlock({ people, more, caption, align, avatar_style }:
           </span>
         ) : null}
       </div>
-      {caption ? <p className="text-sm text-pretty text-muted-foreground">{caption}</p> : null}
+      {note ? <p className="text-sm text-pretty text-muted-foreground">{note}</p> : null}
     </div>
   )
 }
@@ -278,7 +309,8 @@ export function TextMarqueeBlock({ text, size, font_size, separator, separator_c
 export type AnimatedListProps = { items: { icon: string; title: string; description: string; time: string }[]; visible: "3" | "4" | "5" }
 
 /** Butir baru muncul di atas setiap beberapa detik, berputar terus (Animated List). */
-export function AnimatedListBlock({ items, visible }: BlockProps<AnimatedListProps>) {
+export function AnimatedListBlock({ items: all, visible, puck }: BlockProps<AnimatedListProps>) {
+  const items = shownItems(all, (item) => item.title.trim() !== "", puck)
   const shown = Number(visible) || 4
   const total = items.length
   // Pengunjung yang meminta gerak dikurangi langsung melihat daftar penuh, diam.
@@ -305,7 +337,7 @@ export function AnimatedListBlock({ items, visible }: BlockProps<AnimatedListPro
               </IconTile>
               <div className="flex min-w-0 flex-1 flex-col">
                 <p className="flex items-center gap-2 text-sm font-semibold">
-                  <span className="truncate">{item.title}</span>
+                  <span className="truncate">{orHint(item.title, "Judul kabar", puck)}</span>
                   {item.time ? <span className="shrink-0 text-xs font-normal text-muted-foreground">· {item.time}</span> : null}
                 </p>
                 {item.description ? <p className="text-sm text-muted-foreground">{item.description}</p> : null}

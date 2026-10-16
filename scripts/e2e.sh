@@ -18,8 +18,10 @@ mkdir -p bin
 go build -tags dev -o bin/app-e2e ./cmd/api
 
 log=bin/e2e-server.log
+# APP_AI_API_KEY dikosongkan: uji peramban memakai penyusun simulasi dan
+# jawaban tiruan, tidak pernah model berbayar — walau shell ini punya kuncinya.
 DATABASE_URL="postgres://app:app@127.0.0.1:$db_port/app_e2e?sslmode=disable" \
-  DEV_HTTP_ADDR="127.0.0.1:$port" bin/app-e2e >"$log" 2>&1 &
+  DEV_HTTP_ADDR="127.0.0.1:$port" APP_AI_API_KEY= bin/app-e2e >"$log" 2>&1 &
 server=$!
 trap 'kill "$server" 2>/dev/null || true; wait "$server" 2>/dev/null || true' EXIT
 

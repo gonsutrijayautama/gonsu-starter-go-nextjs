@@ -1,8 +1,8 @@
 /*
- * Efek blok halaman: latar (kisi, titik, cahaya, aurora, retro grid, ripple,
- * meteor, sinar), teks (gradien, kilau, aurora, mengetik), tombol, kartu,
- * marquee, orbit, dan animasi muncul. Polanya mengikuti Magic UI dan Aceternity, tapi ditulis
- * ulang dengan CSS saja — tanpa pustaka animasi tambahan — dan warnanya dari
+ * Efek blok halaman: gradien bergerak, latar (kisi, titik, cahaya, aurora,
+ * retro grid, ripple, meteor, sinar), teks (gradien, kilau, aurora, mengetik),
+ * tombol, kartu, marquee, orbit, dan animasi muncul. Polanya mengikuti Magic UI
+ * dan Aceternity, tapi ditulis ulang dengan CSS saja — tanpa pustaka animasi tambahan — dan warnanya dari
  * token aplikasi. Pengunjung yang meminta gerak dikurangi melihat versi diam.
  */
 
@@ -24,11 +24,15 @@
   --surface-bg: var(--surface-day-bg);
   --surface-fg: var(--surface-day-fg);
   --surface-image: var(--surface-day-image);
+  --surface-from: var(--surface-day-from);
+  --surface-to: var(--surface-day-to);
 }
 .dark .page-surface-adaptive {
   --surface-bg: var(--surface-night-bg);
   --surface-fg: var(--surface-night-fg);
   --surface-image: var(--surface-night-image);
+  --surface-from: var(--surface-night-from);
+  --surface-to: var(--surface-night-to);
 }
 
 /*
@@ -41,6 +45,152 @@
 }
 [data-text-size] .page-lead {
   font-size: min(var(--page-text-size), 6vw);
+}
+
+/* --- Gradien bergerak ------------------------------------------------------- */
+
+/*
+ * Gerak untuk latar gradien dua warna (Tampilan bagian → Gradien → Gerak),
+ * ditulis sendiri dengan CSS saja. Yang dianimasikan hanya transform, jadi
+ * dikerjakan kartu grafis. Nada warnanya campuran kedua warna pilihan — tidak
+ * ada yang lebih terang atau lebih gelap dari keduanya — supaya warna teks
+ * yang dipilih appearance.tsx tetap terbaca di mana pun warnanya sedang
+ * berada. Ukuran memakai satuan wadah (cq*): lapisannya selalu menutup
+ * bagian, setinggi atau selebar apa pun. Lapisannya tidak berlatar, jadi
+ * gradien diam milik bagian tetap menjadi dasarnya.
+ */
+.page-flow {
+  --flow-a: var(--surface-from);
+  --flow-b: var(--surface-to);
+  --flow-a2: color-mix(in oklch, var(--flow-a) 70%, var(--flow-b));
+  --flow-b2: color-mix(in oklch, var(--flow-a) 30%, var(--flow-b));
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+  container-type: size;
+}
+.page-flow > span {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  translate: -50% -50%;
+  will-change: transform;
+}
+
+/* Awan: empat gumpalan warna yang melayang, masing-masing di jalurnya sendiri. */
+.page-flow-cloud > span {
+  width: 85cqmax;
+  aspect-ratio: 1;
+  border-radius: 9999px;
+  background: radial-gradient(closest-side, var(--flow-ink), color-mix(in oklch, var(--flow-ink) 55%, transparent) 50%, transparent);
+  animation: page-cloud 24s ease-in-out infinite alternate;
+}
+.page-flow-cloud > span:nth-child(1) {
+  --flow-ink: var(--flow-a);
+  --x1: 26cqw;
+  --y1: 22cqh;
+  --x2: 8cqw;
+  --y2: 46cqh;
+  top: 8%;
+  left: 12%;
+}
+.page-flow-cloud > span:nth-child(2) {
+  --flow-ink: var(--flow-b);
+  --x1: -30cqw;
+  --y1: -18cqh;
+  --x2: -10cqw;
+  --y2: -44cqh;
+  top: 92%;
+  left: 88%;
+  animation-duration: 29s;
+}
+.page-flow-cloud > span:nth-child(3) {
+  --flow-ink: var(--flow-b2);
+  --x1: -22cqw;
+  --y1: 30cqh;
+  --x2: -44cqw;
+  --y2: 10cqh;
+  top: 12%;
+  left: 86%;
+  width: 65cqmax;
+  animation-duration: 21s;
+  animation-delay: -7s;
+}
+.page-flow-cloud > span:nth-child(4) {
+  --flow-ink: var(--flow-a2);
+  --x1: 28cqw;
+  --y1: -26cqh;
+  --x2: 46cqw;
+  --y2: -8cqh;
+  top: 88%;
+  left: 16%;
+  width: 70cqmax;
+  animation-duration: 33s;
+  animation-delay: -12s;
+}
+@keyframes page-cloud {
+  0% {
+    transform: translate(0, 0) scale(1);
+  }
+  50% {
+    transform: translate(var(--x1), var(--y1)) scale(1.18);
+  }
+  100% {
+    transform: translate(var(--x2), var(--y2)) scale(0.88);
+  }
+}
+
+/*
+ * Pusaran: dua bidang warna melingkar yang berputar pelan berlawanan arah.
+ * Sisinya 150cqmax supaya sudut bagian tetap tertutup di putaran mana pun.
+ */
+.page-flow-swirl > span {
+  width: 150cqmax;
+  aspect-ratio: 1;
+  background: conic-gradient(from 0deg at 44% 56%, var(--flow-a), var(--flow-b2), var(--flow-b), var(--flow-a2), var(--flow-a));
+  filter: blur(4cqmax);
+  animation: page-swirl 40s linear infinite;
+}
+.page-flow-swirl > span:last-child {
+  background: conic-gradient(from 120deg at 58% 40%, var(--flow-b), transparent 28%, var(--flow-a) 55%, transparent 80%, var(--flow-b));
+  animation-duration: 64s;
+  animation-direction: reverse;
+}
+@keyframes page-swirl {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/*
+ * Sutra: lipatan warna miring yang mengalir ke samping, dengan kilau tipis
+ * di atasnya. Lapisannya lebih lebar dari bagian sebanyak satu ulangan pola
+ * (--flow-step), lalu digeser sejauh itu: putarannya tanpa sambungan.
+ */
+.page-flow-silk > span {
+  /* Ulangan mendatar pola 60cqmax yang dimiringkan 128deg: 60 / sin(128deg). */
+  --flow-step: 76.14cqmax;
+  top: 0;
+  left: 0;
+  translate: none;
+  width: calc(100% + var(--flow-step));
+  height: 100%;
+  background: repeating-linear-gradient(128deg, var(--flow-a) 0, var(--flow-a2) 12cqmax, var(--flow-b) 33cqmax, var(--flow-b2) 42cqmax, var(--flow-a) 60cqmax);
+  animation: page-silk 34s linear infinite;
+}
+.page-flow-silk > span:last-child {
+  /* 42 / sin(121deg). */
+  --flow-step: 49cqmax;
+  background: repeating-linear-gradient(121deg, transparent 0, oklch(1 0 0 / 0.16) 7cqmax, transparent 16cqmax, oklch(0 0 0 / 0.1) 29cqmax, transparent 42cqmax);
+  mix-blend-mode: soft-light;
+  animation-duration: 23s;
+}
+@keyframes page-silk {
+  to {
+    transform: translateX(calc(var(--flow-step) * -1));
+  }
 }
 
 /* --- Latar ------------------------------------------------------------------ */
@@ -560,6 +710,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .page-flow > span,
   .page-bg-aurora::before,
   .page-bg-aurora::after,
   .page-bg-retro::before,

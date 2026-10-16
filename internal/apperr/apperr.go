@@ -25,6 +25,8 @@ const (
 	CodeInternalError          = "INTERNAL_ERROR"
 	CodeControlPlaneRejected   = "CONTROL_PLANE_REJECTED"
 	CodeControlPlaneDown       = "CONTROL_PLANE_UNAVAILABLE"
+	CodeStockMediaUnavailable  = "STOCK_MEDIA_UNAVAILABLE"
+	CodeAIUnavailable          = "AI_UNAVAILABLE"
 )
 
 var statusByCode = map[string]int{
@@ -42,6 +44,8 @@ var statusByCode = map[string]int{
 	CodeInternalError:          http.StatusInternalServerError,
 	CodeControlPlaneRejected:   http.StatusBadGateway,
 	CodeControlPlaneDown:       http.StatusServiceUnavailable,
+	CodeStockMediaUnavailable:  http.StatusServiceUnavailable,
+	CodeAIUnavailable:          http.StatusServiceUnavailable,
 }
 
 // FieldError menunjuk satu field yang tidak valid, mis. "number" atau
@@ -134,6 +138,20 @@ func Conflict(message string, details ...FieldError) *Error {
 // kalimat GONSU yang memang ditujukan untuk manusia.
 func ControlPlane(code, message string) *Error {
 	return &Error{Code: code, Message: message}
+}
+
+// StockMediaUnavailable: penyedia foto dan video (Pixabay) tidak menjawab atau
+// menolak. Halaman tetap bisa disusun tanpa fotonya; mencoba lagi nanti
+// biasanya berhasil.
+func StockMediaUnavailable(message string) *Error {
+	return &Error{Code: CodeStockMediaUnavailable, Message: message}
+}
+
+// AIUnavailable: asisten AI penyusun halaman belum diaktifkan, atau penyedia
+// modelnya tidak menjawab atau menolak. Halaman tetap bisa disusun tangan;
+// mencoba lagi nanti biasanya berhasil.
+func AIUnavailable(message string) *Error {
+	return &Error{Code: CodeAIUnavailable, Message: message}
 }
 
 // RateLimited: melewati batas laju. `RetryAfter`

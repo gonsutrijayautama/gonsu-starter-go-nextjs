@@ -657,15 +657,14 @@ function seed(): Store {
     content: [
       block("Hero", {
         title: "Melayani sepenuh hati, setiap hari",
-        subtitle: "Usaha keluarga yang mengerjakan setiap pesanan dengan rapi. Datang langsung, atau hubungi kami.",
+        subtitle: "Setiap pesanan kami kerjakan dengan teliti. Datang langsung, atau hubungi kami.",
         button_label: "Hubungi kami", button_link: "#kontak", image: null, align: "left",
       }),
       block("Services", {
         title: "Yang bisa kami bantu",
         items: [
           { title: "Konsultasi", description: "Bicarakan kebutuhan Anda dengan tim kami.", icon: "headset" },
-          { title: "Pengerjaan", description: "Dikerjakan tim sendiri, tepat waktu.", icon: "wrench" },
-          { title: "Pengiriman", description: "Diantar ke alamat Anda.", icon: "truck" },
+          { title: "Pengerjaan", description: "Dikerjakan dengan teliti, sesuai yang disepakati.", icon: "wrench" },
         ],
       }),
       block("Contact", { title: "Mampir atau hubungi kami", note: "Kami senang dihubungi lewat cara yang paling mudah untuk Anda." }),
@@ -673,13 +672,7 @@ function seed(): Store {
   }
   const homeV2: Data = clone(homeV1)
   homeV2.content.splice(2, 0,
-    block("Testimonials", {
-      title: "Kata pelanggan",
-      items: [
-        { quote: "Pengerjaannya rapi dan tepat waktu.", name: "Ibu Sari", role: "Pelanggan sejak 2021" },
-        { quote: "Timnya ramah, gampang dihubungi.", name: "Pak Andi", role: "Pelanggan" },
-      ],
-    }),
+    block("Steps", { title: "Cara memesan" }),
     block("CallToAction", { title: "Siap mulai?", body: "Ceritakan kebutuhan Anda, kami bantu dari awal.", button_label: "Hubungi kami", button_link: "#kontak", style: "primary" }),
   )
 
@@ -691,8 +684,8 @@ function seed(): Store {
       block("Services", {
         title: "",
         items: [
-          { title: "Konsultasi", description: "Gratis untuk pertemuan pertama.", icon: "headset" },
-          { title: "Pengerjaan", description: "Dikerjakan tim sendiri.", icon: "wrench" },
+          { title: "Konsultasi", description: "Ceritakan kebutuhan Anda lebih dulu.", icon: "headset" },
+          { title: "Pengerjaan", description: "Dikerjakan sesuai yang disepakati.", icon: "wrench" },
         ],
       }),
     ],
@@ -702,8 +695,8 @@ function seed(): Store {
     block("Faq", {
       title: "Pertanyaan yang sering diajukan",
       items: [
-        { question: "Berapa lama pengerjaannya?", answer: "Biasanya satu sampai dua minggu, tergantung jumlahnya." },
-        { question: "Bisa dikirim ke luar kota?", answer: "Bisa. Ongkos kirim dihitung saat pemesanan." },
+        { question: "Bagaimana cara memesan?", answer: "Hubungi kami lewat kontak di halaman ini, lalu ceritakan kebutuhan Anda." },
+        { question: "Apakah bisa bertanya dulu sebelum memesan?", answer: "Tentu. Ceritakan kebutuhan Anda, lalu kami jelaskan pilihannya." },
       ],
     }),
   )
@@ -712,7 +705,7 @@ function seed(): Store {
     root: { props: {} },
     zones: {},
     content: [
-      block("Text", { title: "Tentang kami", body: "<p>Ceritakan sejak kapan usaha Anda berdiri, dan apa yang membuatnya berbeda.</p>" }),
+      block("Text", { title: "Tentang kami", body: "<p>Kami percaya pekerjaan yang baik dimulai dari mendengarkan kebutuhan pelanggan.</p>" }),
     ],
   }
 
@@ -731,7 +724,7 @@ function seed(): Store {
       },
       {
         id: newId(), path: "/layanan", title: "Layanan", navigation: { visible: true, position: 1 },
-        seo: { title: "", description: "Layanan Maju Bersama.", image: null }, status: "changed", version: 4,
+        seo: { title: "", description: "", image: null }, status: "changed", version: 4,
         published_at: at(2, 10), updated_at: at(0, 8), draft: servicesDraft, published: clone(servicesV1),
         history: [{ id: newId(), number: 1, title: "Layanan", published_at: at(2, 10), published_by: "Budi Santoso", data: clone(servicesV1) }],
       },

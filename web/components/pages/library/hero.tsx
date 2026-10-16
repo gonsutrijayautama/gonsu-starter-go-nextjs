@@ -4,10 +4,12 @@ import type { ComponentConfig } from "@puckeditor/core"
 import { cn } from "cn"
 
 import { ColorScope } from "../appearance"
-import { BlockImage, Section, stackVars, type BlockProps } from "../blocks"
-import { DeviceFrame, HighlightText, type ButtonEffect, type TextEffect } from "../effects"
+import { BlockImage, hasText, Hint, orHint, Section, shownItems, stackVars, textOf, type BlockProps, type InlineText } from "../blocks"
+import { MediaPickButton } from "../media-picker"
+import { Backdrop, DeviceFrame, HighlightText, type ButtonEffect, type TextEffect } from "../effects"
 import { VideoBlock } from "../extras"
-import { buttonEffectField, effectField, imageField, layoutField, linkField, showFields, sk, when, yesNoField } from "../fields"
+import { buttonEffectField, effectField, imageField, inline, layoutField, linkField, showFields, sk, videoField, when, yesNoField } from "../fields"
+import { videoSource } from "../video-source"
 import { AnnouncementPill, Buttons, Logo, PeopleStack, Stars } from "./kit"
 
 // Pembuka halaman: satu blok dengan beberapa susunan. Menggantikan "Pembuka"
@@ -15,15 +17,16 @@ import { AnnouncementPill, Buttons, Logo, PeopleStack, Stars } from "./kit"
 
 export type HeroProps = {
   variant: "centered" | "split" | "background" | "mockup" | "collage" | "video"
-  badge_text: string
+  badge_text: InlineText
   badge_link: string
-  title: string
+  // InlineText: isian yang bisa diketik langsung di kanvas (`inline` di heroConfig).
+  title: InlineText
   highlight: string
   effect: TextEffect
-  subtitle: string
-  primary_label: string
+  subtitle: InlineText
+  primary_label: InlineText
   primary_link: string
-  secondary_label: string
+  secondary_label: InlineText
   secondary_link: string
   button_effect: ButtonEffect
   image: string | null
@@ -34,33 +37,62 @@ export type HeroProps = {
   align: "left" | "center"
   proof: "yes" | "no"
   proof_names: string
-  proof_text: string
+  proof_text: InlineText
   proof_rating: number
   logos: "yes" | "no"
-  logos_title: string
+  logos_title: InlineText
   logo_items: { name: string; image: string | null }[]
+}
+
+/**
+ * Bukti sosial: hanya bagian yang diisi pengelola. Contoh bawaannya kosong
+ * karena rating, jumlah pelanggan, dan nama yang dikarang terbaca sebagai
+ * fakta usaha di halaman publik.
+ */
+function Proof({ props, center }: { props: BlockProps<HeroProps>; center: boolean }) {
+  const { proof_names, proof_rating, proof_text, puck } = props
+  const names = proof_names.trim()
+  const rating = proof_rating > 0 ? proof_rating : 0
+  const text = orHint(proof_text, "Kalimat bukti yang benar, mis. jumlah pelanggan", puck)
+  if (!names && !rating && !text) return null
+  return (
+    <div className={cn("flex flex-wrap items-center gap-3", center && "justify-center")}>
+      {names ? <PeopleStack names={names} /> : puck.isEditing ? <Hint className="text-sm">Foto dari nama pelanggan</Hint> : null}
+      <div className="flex flex-col gap-0.5 text-sm">
+        {rating ? (
+          <span className="flex items-center gap-1.5">
+            <Stars value={rating} />
+            <span className="font-medium tabular-nums">{rating.toLocaleString("id-ID")}</span>
+          </span>
+        ) : null}
+        {text ? <span className="text-muted-foreground">{text}</span> : null}
+      </div>
+    </div>
+  )
 }
 
 function Copy({ props, center, large }: { props: BlockProps<HeroProps>; center: boolean; large?: boolean }) {
   const { badge_text, badge_link, title, highlight, effect, subtitle, puck } = props
   return (
     <div className={cn("flex flex-col gap-6", center ? "items-center text-center" : "items-start")}>
-      {badge_text ? <AnnouncementPill text={badge_text} link={badge_link} puck={puck} /> : null}
-      <h1
-        className={cn(
-          "page-title font-semibold tracking-tighter text-balance",
-          large ? "max-w-4xl text-4xl leading-[1.05] sm:text-6xl" : "text-4xl leading-[1.06] sm:text-5xl lg:text-[3.5rem]"
-        )}
-      >
-        {title}
-        {/* Kata yang disorot di baris sendiri, seperti pembuka Launch UI. */}
-        {highlight ? (
-          <span className="block">
-            <HighlightText text={highlight} effect={effect} />
-          </span>
-        ) : null}
-      </h1>
-      {subtitle ? <p className={cn("page-lead max-w-2xl text-lg text-pretty text-muted-foreground", large && "sm:text-xl")}>{subtitle}</p> : null}
+      {hasText(badge_text) ? <AnnouncementPill text={badge_text} link={badge_link} puck={puck} /> : null}
+      {hasText(title) || highlight.trim() || puck.isEditing ? (
+        <h1
+          className={cn(
+            "page-title font-semibold tracking-tighter text-balance",
+            large ? "max-w-4xl text-4xl leading-[1.05] sm:text-6xl" : "text-4xl leading-[1.06] sm:text-5xl lg:text-[3.5rem]"
+          )}
+        >
+          {orHint(title, "Judul besar", puck)}
+          {/* Lanjutan judul di baris sendiri, seperti pembuka Launch UI. */}
+          {highlight ? (
+            <span className="block">
+              <HighlightText text={highlight} effect={effect} />
+            </span>
+          ) : null}
+        </h1>
+      ) : null}
+      {hasText(subtitle) ? <p className={cn("page-lead max-w-2xl text-lg text-pretty text-muted-foreground", large && "sm:text-xl")}>{subtitle}</p> : null}
       <Buttons
         primary={{ label: props.primary_label, link: props.primary_link }}
         secondary={{ label: props.secondary_label, link: props.secondary_link }}
@@ -68,37 +100,40 @@ function Copy({ props, center, large }: { props: BlockProps<HeroProps>; center: 
         align={center ? "center" : "left"}
         puck={puck}
       />
-      {props.proof === "yes" ? (
-        <div className={cn("flex flex-wrap items-center gap-3", center && "justify-center")}>
-          <PeopleStack names={props.proof_names} />
-          <div className="flex flex-col gap-0.5 text-sm">
-            {props.proof_rating > 0 ? (
-              <span className="flex items-center gap-1.5">
-                <Stars value={props.proof_rating} />
-                <span className="font-medium tabular-nums">{props.proof_rating.toLocaleString("id-ID")}</span>
-              </span>
-            ) : null}
-            {props.proof_text ? <span className="text-muted-foreground">{props.proof_text}</span> : null}
-          </div>
-        </div>
-      ) : null}
+      {props.proof === "yes" ? <Proof props={props} center={center} /> : null}
     </div>
   )
 }
 
-function LogoRow({ props }: { props: HeroProps }) {
-  const logos = props.logo_items.filter((item) => item.name.trim() || item.image)
-  if (props.logos !== "yes" || logos.length === 0) return null
+function LogoRow({ props }: { props: BlockProps<HeroProps> }) {
+  const { logos, logos_title, logo_items, puck } = props
+  if (logos !== "yes") return null
+  // Di editor logo yang belum diisi tetap tampil sebagai petunjuk; pengunjung hanya melihat yang terisi.
+  const items = shownItems(logo_items, (item) => Boolean(item.name.trim() || item.image), puck)
+  if (items.length === 0) return null
   return (
     <div className="flex flex-col gap-5 pt-12">
-      {props.logos_title ? <p className="text-center text-sm font-medium text-muted-foreground">{props.logos_title}</p> : null}
+      {hasText(logos_title) ? <p className="text-center text-sm font-medium text-muted-foreground">{logos_title}</p> : null}
       <div className="flex flex-wrap items-center justify-center gap-x-10 gap-y-5">
-        {logos.map((item, index) => (
-          <Logo key={index} name={item.name} image={item.image} />
-        ))}
+        {items.map((item, index) =>
+          item.name.trim() || item.image ? (
+            <Logo key={index} name={item.name} image={item.image} />
+          ) : (
+            <Hint key={index} className="flex h-9 items-center text-lg">
+              Nama mitra
+            </Hint>
+          )
+        )}
       </div>
     </div>
   )
+}
+
+/** Media susunan ini benar-benar terisi: tanpa itu pengunjung melihat susunan tengah. */
+function hasMedia(props: HeroProps): boolean {
+  if (props.variant === "collage") return props.images.some((item) => Boolean(item.image))
+  if (props.variant === "video") return videoSource(props.video_url) !== null
+  return Boolean(props.image)
 }
 
 function Media({ props }: { props: BlockProps<HeroProps> }) {
@@ -122,6 +157,7 @@ function Media({ props }: { props: BlockProps<HeroProps> }) {
                   alt=""
                   className={cn("w-full rounded-2xl shadow-lg", ratios[item.index] ?? "aspect-square")}
                   puck={puck}
+                  field={`images.${item.index}.image`}
                 />
               ))}
           </div>
@@ -132,12 +168,12 @@ function Media({ props }: { props: BlockProps<HeroProps> }) {
   if (variant === "video") {
     return (
       <div className={cn(stackVars, "rounded-2xl shadow-xl")}>
-        <VideoBlock url={props.video_url} title={props.title} thumbnail={image} style="dialog" frame="none" puck={puck} />
+        <VideoBlock url={props.video_url} title={textOf(props.title)} thumbnail={image} style="dialog" frame="none" puck={puck} field="video_url" />
       </div>
     )
   }
   if (!image && !puck.isEditing) return null
-  return <BlockImage src={image} alt="" className="aspect-4/3 w-full rounded-2xl shadow-xl" puck={puck} />
+  return <BlockImage src={image} alt="" className="aspect-4/3 w-full rounded-2xl shadow-xl" puck={puck} field="image" />
 }
 
 export function HeroBlock(props: BlockProps<HeroProps>) {
@@ -145,39 +181,56 @@ export function HeroBlock(props: BlockProps<HeroProps>) {
 
   if (variant === "background") {
     const center = props.align === "center"
+    const copy = (
+      <div className={cn("max-w-3xl", center && "mx-auto")}>
+        <Copy props={props} center={center} large />
+      </div>
+    )
     return (
       <Section>
-        <ColorScope
-          background="inverse"
-          className={cn(
-            "relative isolate flex min-h-[32rem] flex-col overflow-hidden rounded-3xl px-6 py-14 sm:px-12 lg:min-h-[38rem] lg:py-20",
-            center ? "justify-center" : "justify-end"
-          )}
-        >
-          {image || puck.isEditing ? (
+        {image ? (
+          <ColorScope
+            background="inverse"
+            className={cn(
+              "relative isolate flex min-h-[32rem] flex-col overflow-hidden rounded-3xl px-6 py-14 sm:px-12 lg:min-h-[38rem] lg:py-20",
+              center ? "justify-center" : "justify-end"
+            )}
+          >
             <div aria-hidden="true" className="absolute inset-0 -z-10">
               <BlockImage src={image} alt="" className="size-full rounded-none border-0" puck={puck} />
               <div className={cn("absolute inset-0", center ? "bg-black/55" : "bg-linear-to-t from-black/80 via-black/45 to-black/10")} />
             </div>
-          ) : null}
-          <div className={cn("max-w-3xl", center && "mx-auto")}>
-            <Copy props={props} center={center} large />
-          </div>
-        </ColorScope>
+            <MediaPickButton puck={puck} field="image" filled className="top-4 right-4" />
+            {copy}
+          </ColorScope>
+        ) : (
+          // Tanpa gambar: panel warna utama berpola, setinggi isinya. Tinggi
+          // minimum hanya berguna untuk memperlihatkan gambar; tanpa gambar ia
+          // menjadi lempeng kosong di atas teks di layar ponsel. Editor
+          // melihat panel yang sama, dengan tombol untuk memilih gambar.
+          <ColorScope background="primary" className="relative isolate overflow-hidden rounded-3xl px-6 py-16 sm:px-12 lg:py-24">
+            <Backdrop kind="grid" />
+            <Backdrop kind="glow" />
+            <MediaPickButton puck={puck} field="image" filled={false} className="top-4 right-4" />
+            {copy}
+          </ColorScope>
+        )}
         <LogoRow props={props} />
       </Section>
     )
   }
 
-  if (variant === "split" || variant === "collage" || variant === "video") {
-    const media = <Media props={props} />
+  // Tanpa media, pengunjung mendapat susunan tengah (di bawah): separuh
+  // kosong di samping teks terlihat seperti blok yang rusak. Editor tetap
+  // memperlihatkan tempat medianya supaya bisa diisi.
+  if ((variant === "split" || variant === "collage" || variant === "video") && (puck.isEditing || hasMedia(props))) {
     return (
       <Section className="pt-12 lg:pt-20">
-        <div className={cn("grid items-center gap-12", (image || puck.isEditing || variant !== "split") && "lg:grid-cols-2 lg:gap-16")}>
+        <div className="grid items-center gap-12 lg:grid-cols-2 lg:gap-16">
           <div className={cn(props.image_side === "left" && "lg:order-2")}>
             <Copy props={props} center={false} />
           </div>
-          {media}
+          <Media props={props} />
         </div>
         <LogoRow props={props} />
       </Section>
@@ -199,11 +252,12 @@ export function HeroBlock(props: BlockProps<HeroProps>) {
                 alt=""
                 className={cn("w-full rounded-none border-0", props.frame === "phone" ? "aspect-[9/19]" : "aspect-video")}
                 puck={puck}
+                field="image"
               />
             </DeviceFrame>
           ) : (
             <div className="rounded-2xl border bg-card/60 p-2 shadow-2xl backdrop-blur">
-              <BlockImage src={image} alt="" className="aspect-video w-full" puck={puck} />
+              <BlockImage src={image} alt="" className="aspect-video w-full" puck={puck} field="image" />
             </div>
           )}
         </div>
@@ -232,24 +286,29 @@ export const heroConfig: ComponentConfig<HeroProps> = {
       },
       { value: "video", label: "Dengan video", sketch: [...text(4, 9, 22), b(4, 20), i(31, 9, 25, 15), o(40.5, 13.5, 6)] },
     ]),
-    badge_text: { type: "text", label: "Pengumuman kecil di atas judul", placeholder: "Kosongkan bila tidak perlu" },
+    badge_text: inline({ type: "text", label: "Pengumuman kecil di atas judul", placeholder: "Kosongkan bila tidak perlu" } as const),
     badge_link: { type: "text", label: "Tautan pengumuman", placeholder: "/layanan, #kontak, atau https://…" },
-    title: { type: "textarea", label: "Judul besar" },
-    highlight: { type: "text", label: "Kata yang disorot", placeholder: "Untuk efek berganti: rapi, cepat, terjangkau" },
+    // Satu baris: halaman publik menyatukan baris judul, jadi Enter di kanvas
+    // ditolak supaya editor dan pengunjung melihat judul yang sama.
+    title: inline({ type: "text", label: "Judul besar" } as const),
+    // Baris kedua dirender di bawah judul, jadi isinya lanjutan kalimat judul — bukan kata yang diulang dari judul.
+    // Tidak diketik di kanvas: kata-katanya dipecah untuk efek berganti dan diketik.
+    highlight: { type: "text", label: "Baris kedua judul (diberi efek)", placeholder: "Lanjutan kalimat judul, bukan kata dari judul" },
     effect: effectField,
-    subtitle: { type: "textarea", label: "Kalimat di bawahnya" },
-    primary_label: { type: "text", label: "Tombol utama", placeholder: "Kosongkan bila tanpa tombol" },
+    subtitle: inline({ type: "textarea", label: "Kalimat di bawahnya" } as const),
+    primary_label: inline({ type: "text", label: "Tombol utama", placeholder: "Kosongkan bila tanpa tombol" } as const),
     primary_link: linkField,
-    secondary_label: { type: "text", label: "Tombol kedua", placeholder: "Kosongkan bila tanpa tombol kedua" },
+    secondary_label: inline({ type: "text", label: "Tombol kedua", placeholder: "Kosongkan bila tanpa tombol kedua" } as const),
     secondary_link: { ...linkField, label: "Tautan tombol kedua" },
     button_effect: buttonEffectField,
     image: imageField("Gambar"),
+    // Nilai yang tersimpan adalah sisi gambar ("right": gambar di kanan).
     image_side: {
       type: "radio",
-      label: "Letak teks",
+      label: "Letak gambar",
       options: [
-        { label: "Teks di kiri", value: "right" },
-        { label: "Teks di kanan", value: "left" },
+        { label: "Gambar di kanan", value: "right" },
+        { label: "Gambar di kiri", value: "left" },
       ],
     },
     frame: {
@@ -269,27 +328,27 @@ export const heroConfig: ComponentConfig<HeroProps> = {
       defaultItemProps: { image: null },
       arrayFields: { image: imageField("Foto") },
     },
-    video_url: { type: "text", label: "Tautan video YouTube", placeholder: "https://youtu.be/…" },
+    video_url: videoField("Video"),
     align: {
       type: "radio",
-      label: "Letak teks",
+      label: "Perataan teks",
       options: [
-        { label: "Kiri bawah", value: "left" },
+        { label: "Kiri, di bawah", value: "left" },
         { label: "Tengah", value: "center" },
       ],
     },
     proof: yesNoField("Bukti sosial (foto pelanggan dan rating)"),
     proof_names: { type: "text", label: "Nama pelanggan untuk foto (pisahkan dengan koma)" },
     proof_rating: { type: "number", label: "Rating (0 = tanpa bintang)", min: 0, max: 5, step: 0.1 },
-    proof_text: { type: "text", label: "Kalimat bukti", placeholder: "Dipercaya 500+ pelanggan" },
+    proof_text: inline({ type: "text", label: "Kalimat bukti", placeholder: "Hanya fakta yang benar tentang usaha Anda" } as const),
     logos: yesNoField("Logo mitra di bawah"),
-    logos_title: { type: "text", label: "Kalimat di atas logo" },
+    logos_title: inline({ type: "text", label: "Kalimat di atas logo" } as const),
     logo_items: {
       type: "array",
       label: "Logo",
       max: 12,
       getItemSummary: (item) => item.name || "Logo tanpa nama",
-      defaultItemProps: { name: "Nama mitra", image: null },
+      defaultItemProps: { name: "", image: null },
       arrayFields: { name: { type: "text", label: "Nama (tampil bila tanpa gambar)" }, image: imageField("Gambar logo") },
     },
   },
@@ -314,7 +373,7 @@ export const heroConfig: ComponentConfig<HeroProps> = {
     title: "Urusan Anda selesai",
     highlight: "lebih cepat dan rapi",
     effect: "gradient",
-    subtitle: "Satu-dua kalimat yang menjelaskan apa yang Anda tawarkan dan untuk siapa.",
+    subtitle: "Ceritakan kebutuhan Anda; kami bantu dari awal sampai selesai.",
     primary_label: "Hubungi kami",
     primary_link: "#kontak",
     secondary_label: "",
@@ -327,12 +386,14 @@ export const heroConfig: ComponentConfig<HeroProps> = {
     video_url: "",
     align: "left",
     proof: "no",
-    proof_names: "Sari, Budi, Rina, Agus",
-    proof_rating: 4.9,
-    proof_text: "Dipercaya 500+ pelanggan",
+    // Bukti sosial dan logo mitra kosong: nama, rating, dan mitra karangan
+    // terbaca sebagai fakta di halaman publik (juga saat AI mengisi dari bawaan).
+    proof_names: "",
+    proof_rating: 0,
+    proof_text: "",
     logos: "no",
     logos_title: "Dipercaya oleh",
-    logo_items: ["Maju Bersama", "Sumber Rejeki", "Karya Mandiri", "Sinar Abadi", "Berkah Jaya"].map((name) => ({ name, image: null })),
+    logo_items: Array.from({ length: 5 }, () => ({ name: "", image: null })),
   },
   render: (props) => <HeroBlock {...props} />,
 }

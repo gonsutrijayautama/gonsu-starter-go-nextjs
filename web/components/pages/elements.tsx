@@ -17,15 +17,22 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
 import {
   BlockImage,
+  editable,
   gapClass,
+  hasText,
   Section,
   elementFrame,
+  orHint,
+  textOf,
+  pageButton,
   resolveLink,
   richText,
   rowVars,
+  shownItems,
   stackVars,
   useOverlayPortal,
   type BlockProps,
+  type InlineText,
   type SlotBlockProps,
   type SlotRender,
 } from "./blocks"
@@ -93,20 +100,23 @@ export function GridBlock({ columns, mobile, gap, items }: SlotBlockProps<GridPr
   )
 }
 
-export type CardProps = { title: string; description: string; style: "card" | "frame"; effect: CardEffect; content: Slot }
+export type CardProps = { title: InlineText; description: InlineText; style: "card" | "frame"; effect: CardEffect; content: Slot }
 
 /** Kartu: judul, keterangan, dan isi bebas. "Bingkai" memakai Frame ReUI, seperti kartu di aplikasi. */
 export function CardBlock({ title, description, style, effect, content }: SlotBlockProps<CardProps, "content">) {
   const body = content({ className: cn(stackVars, "flex flex-col gap-4"), minEmptyHeight: 64 })
+  // Judul bisa diketik langsung di kanvas; keterangan yang kosong diisi lewat panel.
+  const heading = editable(title, "Judul kartu")
+  const note = hasText(description) ? description : null
   if (style === "frame") {
     return (
       <div className={cn(elementFrame, "h-full")}>
         <EffectFrame effect={effect} className="h-full rounded-xl">
           <Frame className="h-full">
-            {title || description ? (
+            {heading || note ? (
               <FrameHeader>
-                {title ? <FrameTitle>{title}</FrameTitle> : null}
-                {description ? <FrameDescription>{description}</FrameDescription> : null}
+                {heading ? <FrameTitle>{heading}</FrameTitle> : null}
+                {note ? <FrameDescription>{note}</FrameDescription> : null}
               </FrameHeader>
             ) : null}
             <FramePanel>{body}</FramePanel>
@@ -119,10 +129,10 @@ export function CardBlock({ title, description, style, effect, content }: SlotBl
     <div className={cn(elementFrame, "h-full")}>
       <EffectFrame effect={effect} className="h-full rounded-xl">
         <div className="flex h-full flex-col gap-4 rounded-xl border bg-card p-6 text-card-foreground shadow-xs">
-          {title || description ? (
+          {heading || note ? (
             <div className="flex flex-col gap-1.5">
-              {title ? <h3 className="leading-none font-semibold">{title}</h3> : null}
-              {description ? <p className="text-sm text-muted-foreground">{description}</p> : null}
+              {heading ? <h3 className="leading-none font-semibold">{heading}</h3> : null}
+              {note ? <p className="text-sm text-muted-foreground">{note}</p> : null}
             </div>
           ) : null}
           {body}
@@ -146,7 +156,7 @@ function textStyle({ font_size, color }: Partial<TextStyle>, shrink = false, lim
   return Object.keys(style).length > 0 ? style : undefined
 }
 
-export type HeadingProps = TextStyle & { text: string; level: "h1" | "h2" | "h3" | "h4"; weight: keyof typeof weightClass; align: Align }
+export type HeadingProps = TextStyle & { text: InlineText; level: "h1" | "h2" | "h3" | "h4"; weight: keyof typeof weightClass; align: Align }
 
 const headingSize = {
   h1: "text-4xl leading-[1.06] font-semibold tracking-tighter sm:text-5xl",
@@ -160,7 +170,7 @@ export function HeadingBlock({ text, level, weight, align, font_size, color }: B
   return (
     <div className={cn(elementFrame, textAlign[align])}>
       <Tag className={cn(headingSize[level], weightClass[weight], "text-balance", font_size > 0 && "leading-[1.08]")} style={textStyle({ font_size, color }, true)}>
-        {text}
+        {editable(text, "Judul")}
       </Tag>
     </div>
   )
@@ -178,7 +188,7 @@ export function ParagraphBlock({ text, size, tone, align, font_size, color }: Bl
 }
 
 export type ButtonProps = {
-  label: string
+  label: InlineText
   link: string
   variant: "default" | "secondary" | "outline" | "ghost" | "link" | "destructive" | "dashed" | "mono" | "soft" | "gradient"
   /** Ikon lucide; kosong = tanpa ikon. */
@@ -199,9 +209,9 @@ export type ButtonProps = {
 // (yang dibuat untuk formulir), karena tombol di halaman adalah ajakan utama.
 const buttonSize = {
   sm: { variant: "sm", extra: "" },
-  md: { variant: "default", extra: "" },
-  lg: { variant: "default", extra: "h-10 px-4 text-base" },
-  xl: { variant: "default", extra: "h-12 rounded-xl px-6 text-base" },
+  md: { variant: "default", extra: pageButton },
+  lg: { variant: "default", extra: "h-12 px-6 text-base" },
+  xl: { variant: "default", extra: "h-14 rounded-xl px-7 text-lg" },
 } as const
 
 // Gaya tombol di luar varian Button aplikasi (pola tombol ReUI). Dasarnya
@@ -215,9 +225,9 @@ const extraVariant = {
 
 export function ButtonBlock({ label, link, variant, icon, icon_position, shape, shadow, new_tab, align, effect, size, width, width_px, puck }: BlockProps<ButtonProps>) {
   const target = resolveLink(link, puck)
-  // Tombol tanpa tautan yang sah tidak berguna bagi pengunjung; di editor tetap
-  // tampil supaya bisa diisi.
-  if (!label.trim() || (!target && !puck.isEditing)) return null
+  // Tombol tanpa teks atau tanpa tautan yang sah tidak berguna bagi pengunjung;
+  // di editor tetap tampil supaya bisa diisi (teksnya diketik langsung).
+  if (!puck.isEditing && (!hasText(label) || !target)) return null
   const extra = variant in extraVariant ? extraVariant[variant as keyof typeof extraVariant] : null
   const iconOnly = Boolean(icon) && icon_position === "only"
   return (
@@ -226,7 +236,7 @@ export function ButtonBlock({ label, link, variant, icon, icon_position, shape, 
         href={puck.isEditing ? undefined : target}
         target={new_tab === "yes" ? "_blank" : undefined}
         rel={new_tab === "yes" ? "noreferrer" : undefined}
-        aria-label={iconOnly ? label : undefined}
+        aria-label={iconOnly ? textOf(label) : undefined}
         className={cn(
           buttonVariants({
             variant: extra ? extra.base : (variant as "default" | "secondary" | "outline" | "ghost" | "link" | "destructive"),
@@ -244,7 +254,7 @@ export function ButtonBlock({ label, link, variant, icon, icon_position, shape, 
         style={width === "custom" && width_px > 0 && !iconOnly ? { width: width_px, maxWidth: "100%" } : undefined}
       >
         {icon && (icon_position === "left" || iconOnly) ? <PageIcon name={icon} /> : null}
-        {iconOnly ? null : label}
+        {iconOnly ? null : editable(label, "Teks tombol")}
         {icon && icon_position === "right" ? <PageIcon name={icon} /> : null}
       </a>
     </div>
@@ -279,7 +289,7 @@ export function ImageBlock({ image, alt, ratio, frame, caption, puck }: BlockPro
   return (
     <figure className={cn(elementFrame, "flex flex-col gap-2")}>
       <DeviceFrame kind={frame}>
-        <BlockImage src={image} alt={alt} className={cn(aspect, "w-full", framed && "rounded-none border-0")} puck={puck} />
+        <BlockImage src={image} alt={alt} className={cn(aspect, "w-full", framed && "rounded-none border-0")} puck={puck} field="image" />
       </DeviceFrame>
       {caption ? <figcaption className="text-sm text-muted-foreground">{caption}</figcaption> : null}
     </figure>
@@ -387,19 +397,23 @@ export function DividerBlock({ style, thickness, color, length, text, icon, posi
 
 // === Komponen ==================================================================
 
-export type AlertProps = { variant: "default" | "info" | "success" | "warning" | "destructive"; title: string; description: string }
+export type AlertProps = { variant: "default" | "info" | "success" | "warning" | "destructive"; title: InlineText; description: InlineText }
 
 const alertIcons = { default: InfoIcon, info: InfoIcon, success: CircleCheckIcon, warning: TriangleAlertIcon, destructive: CircleAlertIcon }
 
-export function AlertBlock({ variant, title, description }: BlockProps<AlertProps>) {
+export function AlertBlock({ variant, title, description, puck }: BlockProps<AlertProps>) {
   const Icon = alertIcons[variant]
+  if (!puck.isEditing && !hasText(title) && !hasText(description)) return null
+  // Di editor keduanya tempat mengetik berpetunjuk; bagi pengunjung yang kosong tidak tampil.
+  const heading = editable(title, "Judul pengumuman")
+  const body = editable(description, "Isi pengumuman")
   return (
     <div className={elementFrame}>
       {/* Pengumuman di halaman bukan galat yang mendesak: tanpa role="alert". */}
       <Alert variant={variant} role="note">
         <Icon aria-hidden="true" />
-        {title ? <AlertTitle>{title}</AlertTitle> : null}
-        {description ? <AlertDescription>{description}</AlertDescription> : null}
+        {heading ? <AlertTitle>{heading}</AlertTitle> : null}
+        {body ? <AlertDescription>{body}</AlertDescription> : null}
       </Alert>
     </div>
   )
@@ -495,8 +509,9 @@ export type TabsProps = {
 
 const tabListAlign = { left: "", center: "mx-auto", stretch: "w-full" }
 
-export function TabsBlock({ variant, align, active, items, puck }: Omit<BlockProps<TabsProps>, "items"> & { items: WithBody<TabItemData>[] }) {
+export function TabsBlock({ variant, align, active, items: all, puck }: Omit<BlockProps<TabsProps>, "items"> & { items: WithBody<TabItemData>[] }) {
   const portal = useOverlayPortal(puck)
+  const items = shownItems(all, (item) => item.label.trim() !== "", puck)
   if (items.length === 0) return null
   const current = String(Math.min(Math.max((active || 1) - 1, 0), items.length - 1))
   const vertical = variant === "vertical"
@@ -525,7 +540,7 @@ export function TabsBlock({ variant, align, active, items, puck }: Omit<BlockPro
               )}
             >
               {item.icon ? <PageIcon name={item.icon} /> : null}
-              {item.label}
+              {orHint(item.label, "Nama tab", puck)}
             </TabsTrigger>
           ))}
         </TabsList>
@@ -539,16 +554,17 @@ export function TabsBlock({ variant, align, active, items, puck }: Omit<BlockPro
   )
 }
 
-export type QuoteProps = { quote: string; name: string; role: string }
+export type QuoteProps = { quote: InlineText; name: InlineText; role: InlineText }
 
 export function QuoteBlock({ quote, name, role }: BlockProps<QuoteProps>) {
+  // Nama dan perannya boleh kosong: tampil hanya bila diisi (lewat panel).
   return (
     <figure className={cn(elementFrame, "flex flex-col gap-3")}>
-      <blockquote className="border-l-2 pl-6 text-lg text-pretty italic">{quote}</blockquote>
-      {name ? (
+      <blockquote className="border-l-2 pl-6 text-lg text-pretty italic">{editable(quote, "Kalimat yang ingin ditonjolkan")}</blockquote>
+      {hasText(name) ? (
         <figcaption className="pl-6 text-sm">
           <span className="font-semibold">{name}</span>
-          {role ? <span className="text-muted-foreground"> · {role}</span> : null}
+          {hasText(role) ? <span className="text-muted-foreground"> · {role}</span> : null}
         </figcaption>
       ) : null}
     </figure>
@@ -585,15 +601,16 @@ export type StatProps = TextStyle &
   StatValue & {
     /** Data lama: angka sebagai teks ("5.000+"). Isian baru memakai number, prefix, dan suffix. */
     value?: string
-    label: string
+    label: InlineText
     align: Align
     format: NumberFormat
     decimals: number
     count: "yes" | "no"
   }
 
-export function StatBlock({ label, align, count, format, decimals, font_size, color, ...rest }: BlockProps<StatProps>) {
+export function StatBlock({ label, align, count, format, decimals, font_size, color, puck, ...rest }: BlockProps<StatProps>) {
   const stat = statOf(rest)
+  if (!hasText(label) && !puck.isEditing) return null
   return (
     <div className={cn(elementFrame, "@container flex flex-col gap-1", textAlign[align])}>
       <StatNumber
@@ -606,14 +623,15 @@ export function StatBlock({ label, align, count, format, decimals, font_size, co
         className="text-[min(2.25rem,15cqw)] font-semibold tracking-tight whitespace-nowrap tabular-nums"
         style={textStyle({ font_size: font_size > 0 ? font_size : 0, color }, true, "15cqw")}
       />
-      {label ? <span className="text-sm text-muted-foreground">{label}</span> : null}
+      <span className="text-sm text-muted-foreground">{orHint(label, "Label angka", puck)}</span>
     </div>
   )
 }
 
-export type FeatureProps = { icon: string; title: string; description: string; style: "default" | "outline" | "muted" }
+export type FeatureProps = { icon: string; title: InlineText; description: InlineText; style: "default" | "outline" | "muted" }
 
-export function FeatureBlock({ icon, title, description, style }: BlockProps<FeatureProps>) {
+export function FeatureBlock({ icon, title, description, style, puck }: BlockProps<FeatureProps>) {
+  const note = orHint(description, "Penjelasan singkat", puck)
   return (
     <div className={elementFrame}>
       <Item variant={style} className="items-start">
@@ -623,8 +641,8 @@ export function FeatureBlock({ icon, title, description, style }: BlockProps<Fea
           </IconTile>
         </ItemMedia>
         <ItemContent>
-          <ItemTitle className="line-clamp-none">{title}</ItemTitle>
-          {description ? <ItemDescription className="line-clamp-none text-pretty">{description}</ItemDescription> : null}
+          <ItemTitle className="line-clamp-none">{orHint(title, "Judul", puck)}</ItemTitle>
+          {note ? <ItemDescription className="line-clamp-none text-pretty">{note}</ItemDescription> : null}
         </ItemContent>
       </Item>
     </div>

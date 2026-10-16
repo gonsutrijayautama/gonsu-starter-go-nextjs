@@ -69,6 +69,27 @@ type Config struct {
 	// ObjectStorage adalah bucket penyimpanan berkas pemasangan ini. Tidak
 	// dikonfigurasi berarti isi berkas disimpan di database.
 	ObjectStorage ObjectStorage
+
+	// PixabayAPIKey adalah APP_PIXABAY_API_KEY: kunci API Pixabay untuk foto
+	// dan video bebas pakai di penyusun halaman (internal/stockmedia). Milik
+	// produk, bukan kontrak GONSU. Kosong berarti fiturnya mati.
+	PixabayAPIKey string
+
+	// AI adalah model bahasa untuk asisten penyusun halaman (internal/pageai).
+	AI AI
+}
+
+// AI adalah penyedia model bahasa yang berbicara API chat completions ala
+// OpenAI. PERCOBAAN: nama variabelnya milik produk dan belum menjadi kontrak
+// GONSU; penyedia dan siapa yang membayar belum diputuskan.
+type AI struct {
+	// APIKey adalah APP_AI_API_KEY. Kosong berarti asisten AI mati dan layar
+	// memakai penyusun simulasi.
+	APIKey string
+	// BaseURL adalah APP_AI_BASE_URL; kosong berarti Vercel AI Gateway.
+	BaseURL string
+	// Model adalah APP_AI_MODEL; kosong berarti bawaan internal/pageai.
+	Model string
 }
 
 // ObjectStorage adalah alamat dan kredensial bucket yang berbicara API S3
@@ -119,6 +140,12 @@ func Load(getenv func(string) string) (Config, error) {
 		DatabaseURL:    dbURL,
 		Getenv:         getenv,
 		TrustedProxies: strings.TrimSpace(getenv("APP_TRUSTED_PROXIES")),
+		PixabayAPIKey:  strings.TrimSpace(getenv("APP_PIXABAY_API_KEY")),
+		AI: AI{
+			APIKey:  strings.TrimSpace(getenv("APP_AI_API_KEY")),
+			BaseURL: strings.TrimSpace(getenv("APP_AI_BASE_URL")),
+			Model:   strings.TrimSpace(getenv("APP_AI_MODEL")),
+		},
 	}
 	if cfg.OIDCRecheck, err = seconds(getenv, "GONSU_OIDC_RECHECK_SECONDS"); err != nil {
 		return Config{}, err

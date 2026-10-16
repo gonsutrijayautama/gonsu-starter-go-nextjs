@@ -127,8 +127,13 @@ const maxDepth = 4
 function valueOf(spec: FieldSpec, value: unknown, fallback: unknown, context: Context, key: string): unknown {
   if (value === undefined) return fallback
   switch (spec.kind) {
-    case "text":
-      return typeof value === "string" ? value.slice(0, 4000) : typeof value === "number" ? String(value) : fallback
+    case "text": {
+      if (typeof value !== "string") return typeof value === "number" ? String(value) : fallback
+      // Isian satu baris (judul, label) tidak menyimpan baris baru: halaman terbit menampilkannya sebagai
+      // spasi, sedangkan teks yang diketik langsung di kanvas membuangnya sehingga kata-katanya menempel.
+      const text = value.slice(0, 4000)
+      return spec.long ? text : text.replace(/\s*\n\s*/g, " ")
+    }
     case "html":
       return typeof value === "string" ? sanitizeHtml(value) : fallback
     case "number": {
@@ -222,25 +227,41 @@ function itemOf(entry: unknown, where: string, allowed: Set<string> | null, cont
 
 /**
  * Jawaban AI menjadi isi halaman. `parts`: komponen penyusun yang boleh
- * dipakai (Desain bebas); tanpa itu hanya blok siap pakai.
+ * dipakai (Desain bebas); tanpa itu hanya blok siap pakai. `where`: sebutan
+ * setiap bagian di peringatan; chat memasukkan bagian satu per satu, jadi
+ * urutannya di jawaban tidak berarti apa-apa di sana.
  */
-export function importBlocks(raw: unknown, catalog: BlockSpec[], images: Map<string, string> = new Map(), parts: BlockSpec[] = []): ImportResult {
+export function importBlocks(
+  raw: unknown,
+  catalog: BlockSpec[],
+  images: Map<string, string> = new Map(),
+  parts: BlockSpec[] = [],
+  where: (index: number) => string = (index) => `Bagian ${index + 1}`
+): ImportResult {
   const byType = new Map([...parts, ...catalog].map((block) => [block.type, block]))
   const context: Context = { warnings: [], images, where: "", byType, depth: 0 }
   const content = itemsOf(raw)
-    .map((entry, index) => itemOf(entry, `Bagian ${index + 1}`, null, context))
+    .map((entry, index) => itemOf(entry, where(index), null, context))
     .filter((item): item is Item => item !== null)
   if (content.length === 0) throw new Error("Tidak ada blok yang bisa dipakai dari jawaban AI.")
   return { content, warnings: context.warnings }
 }
 
+type Exported = { type: string; props: Record<string, unknown> }
+
 /**
- * Halaman sekarang untuk mode "perbaiki": tanpa id, dan foto diganti
- * "gambar:N" supaya prompt tidak memuat isi foto. `images` menyimpan
- * pasangannya untuk dikembalikan saat diimpor.
+ * Bagian halaman dalam bentuk yang dibaca AI: tanpa id, dan foto diganti
+ * "gambar:N" supaya prompt tidak memuat isi foto. Hasilnya sejajar dengan
+ * `items`; null untuk bagian yang bukan blok dari katalog. `images` menyimpan
+ * pasangan "gambar:N" untuk dikembalikan saat diimpor, dan boleh diteruskan
+ * dari panggilan sebelumnya supaya nomornya tidak bentrok.
  */
-export function exportForAi(data: Data, catalog: BlockSpec[], parts: BlockSpec[] = []): { content: unknown[]; images: Map<string, string> } {
-  const images = new Map<string, string>()
+export function exportSections(
+  items: unknown[],
+  catalog: BlockSpec[],
+  parts: BlockSpec[] = [],
+  images: Map<string, string> = new Map()
+): { sections: (Exported | null)[]; images: Map<string, string> } {
   const byType = new Map([...parts, ...catalog].map((block) => [block.type, block]))
   const strip = (fields: Record<string, FieldSpec>, props: Record<string, unknown>): Record<string, unknown> => {
     const out: Record<string, unknown> = {}
@@ -260,7 +281,7 @@ export function exportForAi(data: Data, catalog: BlockSpec[], parts: BlockSpec[]
     }
     return out
   }
-  function exportItem(item: unknown): unknown {
+  function exportItem(item: unknown): Exported | null {
     const { type, props } = item as { type: string; props: Record<string, unknown> }
     const block = byType.get(type)
     if (!block) return null
@@ -268,5 +289,41 @@ export function exportForAi(data: Data, catalog: BlockSpec[], parts: BlockSpec[]
     const appearance = look ? Object.fromEntries(Object.keys(appearanceSpec).map((key) => [key, look[key]])) : undefined
     return { type, props: { ...strip(block.fields, props), ...(appearance ? { appearance } : {}) } }
   }
-  return { content: (data.content ?? []).map(exportItem).filter(Boolean), images }
+  return { sections: items.map(exportItem), images }
+}
+
+/** Halaman sekarang untuk mode "perbaiki": hanya blok yang dikenal AI. `images` dipakai lagi saat hasilnya diimpor. */
+export function exportForAi(data: Data, catalog: BlockSpec[], parts: BlockSpec[] = []): { content: unknown[]; images: Map<string, string> } {
+  const { sections, images } = exportSections(data.content ?? [], catalog, parts)
+  return { content: sections.filter(Boolean), images }
+}
+
+const record = (value: unknown) => (typeof value === "object" && value !== null && !Array.isArray(value) ? (value as Record<string, unknown>) : {})
+
+/**
+ * Satu bagian yang sudah ada, diubah AI. `changes` hanya isian yang berubah;
+ * isian lain tetap seperti semula, termasuk yang tidak pernah dilihat AI
+ * (jarak, gerak gradien, isian khusus). null bila bagiannya bukan blok dari
+ * katalog.
+ */
+export function updateBlock(
+  live: Item,
+  changes: Record<string, unknown>,
+  catalog: BlockSpec[],
+  images: Map<string, string>,
+  parts: BlockSpec[] = []
+): { item: Item; warnings: string[] } | null {
+  const block = [...parts, ...catalog].find((spec) => spec.type === live.type)
+  const current = exportSections([live], catalog, parts, images).sections[0]
+  if (!block || !current) return null
+  const asked = { ...current.props, ...changes, appearance: { ...record(current.props.appearance), ...record(changes.appearance) } }
+  const { content, warnings } = importBlocks({ content: [{ type: live.type, props: asked }] }, catalog, images, parts, () => "Bagian yang diubah")
+  const next = content[0]!.props
+  const props: Record<string, unknown> = { ...live.props }
+  for (const key of Object.keys(block.fields)) props[key] = next[key]
+  if (block.defaults.appearance) {
+    const look = record(next.appearance)
+    props.appearance = { ...record(live.props.appearance), ...Object.fromEntries(Object.keys(appearanceSpec).map((key) => [key, look[key]])) }
+  }
+  return { item: { type: live.type, props }, warnings }
 }

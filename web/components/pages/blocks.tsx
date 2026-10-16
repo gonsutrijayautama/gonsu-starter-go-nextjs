@@ -1,15 +1,16 @@
 "use client"
 
 import Image from "next/image"
-import { useCallback, type ReactNode } from "react"
+import { isValidElement, useCallback, type ReactElement, type ReactNode } from "react"
 import { registerOverlayPortal, type PuckContext, type Slot } from "@puckeditor/core"
-import { ImageIcon } from "lucide-react"
+import { ImageIcon, ImagePlusIcon } from "lucide-react"
 import { cn } from "cn"
 
 import type { Site } from "@/lib/site"
 import { buttonVariants } from "@/components/ui/button"
 
 import { useSectionLayout } from "./appearance"
+import { useMediaPick } from "./media-picker"
 
 // Blok penyusun halaman. Komponen yang SAMA dirender editor (Puck) dan
 // halaman publik, jadi yang dilihat pengelola di editor adalah yang dilihat
@@ -91,25 +92,144 @@ export function Section({ id, className, children }: { id?: string; className?: 
   )
 }
 
+/**
+ * Petunjuk isian di kanvas editor. Contoh bawaan blok tidak memuat apa pun
+ * yang bisa terbaca sebagai fakta usaha (nama, angka, harga, jam), jadi
+ * isian yang masih kosong ditandai dengan ini supaya bentuk bloknya tetap
+ * terlihat. Pengunjung tidak pernah melihatnya: lihat `orHint`.
+ */
+export function Hint({ children, className }: { children: ReactNode; className?: string }) {
+  return <span className={cn("text-muted-foreground/70 italic", className)}>{children}</span>
+}
+
+/**
+ * Isian teks yang bisa diketik langsung di kanvas (`contentEditable`, lihat
+ * `inline` di fields.tsx). Bagi pengunjung dan di Mode coba nilainya string;
+ * di editor Puck menggantinya dengan elemen `InlineTextField`. Kode blok tidak
+ * memperlakukannya sebagai string: isinya dibaca lewat `textOf`/`hasText`.
+ */
+export type InlineText = ReactNode
+
+type InlineElement = ReactElement<{ value?: unknown; propPath?: unknown }>
+
+function isInline(node: InlineText): node is InlineElement {
+  return isValidElement(node) && typeof (node.props as { propPath?: unknown }).propPath === "string"
+}
+
+/**
+ * Isi teks sebuah isian, juga saat ia elemen edit-langsung Puck. `value` dan
+ * `propPath` adalah properti internal `InlineTextField` (Puck 0.23), bukan API
+ * resmi: e2e/pages-inline.spec.ts menguncinya, periksa lagi setiap Puck naik versi.
+ */
+export function textOf(node: InlineText): string {
+  if (typeof node === "string") return node
+  if (typeof node === "number") return String(node)
+  if (isInline(node)) return typeof node.props.value === "string" ? node.props.value : ""
+  return ""
+}
+
+export function hasText(node: InlineText): boolean {
+  return textOf(node).trim() !== ""
+}
+
+/**
+ * Pembungkus elemen edit-langsung. Elemen Puck yang kosong selebar nol, jadi
+ * tidak bisa diklik: pembungkus menumpuk petunjuk di atasnya (CSS
+ * `[data-inline-hint]` di puck-theme.css), yang hilang begitu ada teks.
+ * Selalu dipasang, kosong maupun terisi: bila susunannya berganti saat huruf
+ * pertama diketik, React memasang ulang elemennya dan kursornya hilang.
+ */
+function inlineHint(node: InlineElement, hint: string): ReactNode {
+  return <span data-inline-hint={hint}>{node}</span>
+}
+
+/**
+ * Isian yang bisa diketik langsung: nilainya, atau — di editor, saat masih
+ * kosong — tempat mengetik berpetunjuk. Bagi pengunjung yang kosong tidak
+ * dirender. Tidak butuh `puck`: elemen edit-langsung hanya ada di editor.
+ */
+export function editable(value: InlineText | undefined, hint: string): ReactNode {
+  if (isInline(value)) return inlineHint(value, hint)
+  return hasText(value) ? value : null
+}
+
+/** Teks isian; di editor, isian kosong diganti petunjuk. Bagi pengunjung yang kosong tetap kosong. */
+export function orHint(value: InlineText | undefined, hint: string, puck: PuckContext): ReactNode {
+  if (isInline(value)) return editable(value, hint)
+  if (hasText(value)) return value
+  return puck.isEditing ? <Hint>{hint}</Hint> : null
+}
+
+/**
+ * Butir yang dirender: di editor semuanya (yang kosong berisi petunjuk),
+ * bagi pengunjung hanya yang terisi — halaman publik hanya menampilkan yang
+ * diisi (web/AGENTS.md).
+ */
+export function shownItems<T>(items: T[], filled: (item: T) => boolean, puck: PuckContext): T[] {
+  return puck.isEditing ? items : items.filter(filled)
+}
+
+/**
+ * Ukuran tombol di blok halaman. Halaman ini situs pengunjung, bukan layar
+ * aplikasi: tombol ajakan harus terbaca sebagai aksi utama di bawah judul
+ * besar dan cukup besar untuk disentuh (44px), jadi lebih besar dari ukuran
+ * bawaan `Button` yang dipakai layar aplikasi.
+ */
+export const pageButton = "h-10 gap-2 px-4 sm:h-11 sm:px-5 sm:text-base"
+
 export function SectionTitle({ children }: { children: ReactNode }) {
   return <h2 className="page-title text-3xl font-semibold tracking-tight text-balance sm:text-4xl">{children}</h2>
 }
 
-/** Gambar blok. Kosong: tidak dirender bagi pengunjung, tempatnya ditandai di editor. */
-export function BlockImage({ src, alt, className, puck }: { src: string | null; alt: string; className?: string; puck: PuckContext }) {
+/**
+ * Gambar blok. Kosong: tidak dirender bagi pengunjung, tempatnya ditandai di
+ * editor. Dengan `field` (jalur isiannya di props blok), gambar bisa dipilih
+ * atau diganti dengan mengekliknya di kanvas, tanpa lewat panel isian.
+ */
+export function BlockImage({
+  src,
+  alt,
+  className,
+  puck,
+  field,
+}: {
+  src: string | null
+  alt: string
+  className?: string
+  puck: PuckContext
+  field?: string
+}) {
+  const pick = useMediaPick(puck, field)
+  const pickable = pick && "cursor-pointer outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
   if (!src) {
     if (!puck.isEditing) return null
     return (
       <div
-        className={cn("flex items-center justify-center rounded-xl border border-dashed border-muted-foreground/40 bg-muted text-muted-foreground", className)}
+        {...pick}
+        aria-label={pick ? "Pilih gambar" : undefined}
+        className={cn(
+          "flex items-center justify-center rounded-xl border border-dashed border-muted-foreground/40 bg-muted text-muted-foreground",
+          pickable,
+          pick && "hover:border-primary hover:text-foreground",
+          className
+        )}
       >
-        <ImageIcon aria-hidden="true" className="size-6" />
+        {pick ? <ImagePlusIcon aria-hidden="true" className="size-6" /> : <ImageIcon aria-hidden="true" className="size-6" />}
       </div>
     )
   }
   return (
-    <div className={cn("relative overflow-hidden rounded-xl border bg-muted", className)}>
+    <div {...pick} aria-label={pick ? "Ganti gambar" : undefined} className={cn("relative overflow-hidden rounded-xl border bg-muted", pick && "group/pick", pickable, className)}>
       <Image src={src} alt={alt} fill unoptimized className="object-cover" />
+      {pick ? (
+        // Tanda bahwa gambar ini bisa diklik: hanya di editor, saat disorot.
+        <span
+          aria-hidden="true"
+          className="absolute inset-0 flex items-center justify-center bg-background/55 text-foreground opacity-0 transition-opacity group-hover/pick:opacity-100 group-focus-visible/pick:opacity-100"
+        >
+          <ImagePlusIcon className="size-6" />
+        </span>
+      ) : null}
     </div>
   )
 }
@@ -121,7 +241,7 @@ export function LinkButton({
   effect,
   puck,
 }: {
-  label: string
+  label: InlineText
   href: string
   variant: "default" | "secondary" | "outline"
   /** Kelas efek tombol (effects.tsx), bila ada. */
@@ -129,10 +249,10 @@ export function LinkButton({
   puck: PuckContext
 }) {
   const target = resolveLink(href, puck)
-  if (!label.trim() || !target) return null
+  if (!hasText(label) || !target) return null
   return (
     // Di editor tautan tidak dibuka: klik memilih blok, bukan meninggalkan kanvas.
-    <a href={puck.isEditing ? undefined : target} className={cn(buttonVariants({ variant }), effect)}>
+    <a href={puck.isEditing ? undefined : target} className={cn(buttonVariants({ variant }), pageButton, effect)}>
       {label}
     </a>
   )

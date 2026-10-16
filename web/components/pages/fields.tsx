@@ -1,11 +1,12 @@
 "use client"
 
-import type { CustomField, DefaultComponentProps, Fields } from "@puckeditor/core"
+import type { CustomField, DefaultComponentProps, Fields, RichtextField } from "@puckeditor/core"
 
 import { Field, FieldLabel } from "@/components/ui/field"
 
 import { ImageInput } from "./image-input"
 import { OptionPicker } from "./option-picker"
+import { VideoInput } from "./video-input"
 
 // Isian Puck yang dipakai banyak blok, pemilih susunan bergambar, dan aturan
 // isian yang hanya tampil untuk susunan tertentu.
@@ -18,6 +19,19 @@ export const imageField = (label: string): CustomField<string | null> => ({
     <Field>
       <FieldLabel htmlFor={id}>{label}</FieldLabel>
       <ImageInput id={id} value={value ?? null} onChange={onChange} readOnly={readOnly} />
+    </Field>
+  ),
+})
+
+/** Alamat video: dipilih dari pustaka Pixabay atau ditempel dari YouTube. */
+export const videoField = (label: string): CustomField<string> => ({
+  type: "custom",
+  label,
+  metadata: { ai: { kind: "text" } },
+  render: ({ id, value, onChange, readOnly }) => (
+    <Field>
+      <FieldLabel htmlFor={id}>{label}</FieldLabel>
+      <VideoInput id={id} value={value ?? ""} onChange={onChange} readOnly={readOnly} />
     </Field>
   ),
 })
@@ -45,11 +59,46 @@ export const yesNoField = (label: string) =>
     ],
   }) as const
 
+/**
+ * Isian teks yang juga bisa diketik langsung di kanvas editor. Di editor
+ * nilainya sampai ke blok sebagai elemen, bukan string: blok membacanya lewat
+ * `textOf`/`hasText`/`editable` (blocks.tsx), tidak dengan `.trim()`/`.split()`.
+ * Jangan untuk isian yang diurai (dipisah koma atau baris), tautan, atau teks
+ * di dalam tombol yang membuka/menutup sesuatu.
+ */
+export function inline<F extends { type: "text" | "textarea" }>(field: F): F & { contentEditable: true } {
+  return { ...field, contentEditable: true }
+}
+
+/**
+ * Isian teks kaya yang diketik langsung di kanvas, dengan format yang sama di
+ * semua blok: tebal, miring, garis bawah, daftar, kutipan, tautan, dan judul
+ * H2/H3. Format lain (kode, coret, garis pemisah, rata teks) dimatikan: tidak
+ * punya gaya di halaman dan dibuang pemeriksa HTML saat AI mengubah bloknya
+ * (ai/import.ts). Tautan tidak dibuka saat diklik di editor.
+ */
+export function inlineRichText(label: string): RichtextField {
+  return {
+    type: "richtext",
+    label,
+    contentEditable: true,
+    options: {
+      strike: false,
+      code: false,
+      codeBlock: false,
+      horizontalRule: false,
+      textAlign: false,
+      heading: { levels: [2, 3] },
+      link: { openOnClick: false },
+    },
+  }
+}
+
 export const introFields = {
-  eyebrow: { type: "text", label: "Label kecil di atas judul", placeholder: "Kosongkan bila tidak perlu" },
-  title: { type: "text", label: "Judul bagian" },
-  subtitle: { type: "textarea", label: "Kalimat di bawah judul" },
-} as const
+  eyebrow: inline({ type: "text", label: "Label kecil di atas judul", placeholder: "Kosongkan bila tidak perlu" } as const),
+  title: inline({ type: "text", label: "Judul bagian" } as const),
+  subtitle: inline({ type: "textarea", label: "Kalimat di bawah judul" } as const),
+}
 
 export const backgroundField = {
   type: "select",
@@ -91,7 +140,7 @@ export const cardEffectOptions = [
 
 export const effectField = {
   type: "select",
-  label: "Efek kata yang disorot",
+  label: "Efek pada lanjutan judul",
   options: [
     { label: "Gradien bergerak", value: "gradient" },
     { label: "Kilau", value: "shine" },

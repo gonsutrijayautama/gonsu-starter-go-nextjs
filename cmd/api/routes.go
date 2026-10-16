@@ -16,6 +16,8 @@ import (
 	"github.com/gonsutrijayautama/gonsu-starter-go-nextjs/internal/httpx"
 	"github.com/gonsutrijayautama/gonsu-starter-go-nextjs/internal/modules"
 	"github.com/gonsutrijayautama/gonsu-starter-go-nextjs/internal/notes"
+	"github.com/gonsutrijayautama/gonsu-starter-go-nextjs/internal/pageai"
+	"github.com/gonsutrijayautama/gonsu-starter-go-nextjs/internal/stockmedia"
 	"github.com/gonsutrijayautama/gonsu-starter-go-nextjs/internal/tenant"
 )
 
@@ -31,6 +33,10 @@ type app struct {
 	license entitlement.Source
 	// modules adalah modul standar GONSU: profil bisnis, media, wilayah.
 	modules *modules.Standard
+	// stock mencarikan foto dan video Pixabay untuk penyusun halaman.
+	stock *stockmedia.Service
+	// ai adalah asisten AI penyusun halaman.
+	ai *pageai.Service
 	// gonsuLogin: GONSU memberi pemasangan ini login (config.GonsuLoginConfigured).
 	gonsuLogin bool
 	// trustedProxies: reverse proxy yang boleh dipercaya menuliskan
@@ -82,8 +88,18 @@ func prepare(ctx context.Context, pool *pgxpool.Pool, cfg config.Config, logger 
 		return app{}, err
 	}
 
+	stock, err := stockmedia.NewService(stockmedia.Options{APIKey: cfg.PixabayAPIKey, Logger: logger})
+	if err != nil {
+		return app{}, err
+	}
+
+	ai, err := pageai.NewService(pageai.Options{APIKey: cfg.AI.APIKey, BaseURL: cfg.AI.BaseURL, Model: cfg.AI.Model, Logger: logger})
+	if err != nil {
+		return app{}, err
+	}
+
 	return app{pool: pool, logger: logger, org: inst.OrganizationID, kit: kit, sessions: sessions,
-		license: kit.License(), modules: standard, gonsuLogin: cfg.GonsuLoginConfigured(),
+		license: kit.License(), modules: standard, stock: stock, ai: ai, gonsuLogin: cfg.GonsuLoginConfigured(),
 		trustedProxies: httpx.ParseTrustedProxies(cfg.TrustedProxies)}, nil
 }
 
@@ -127,6 +143,9 @@ func (a app) routes() (func(chi.Router), error) {
 			api.Group(func(business chi.Router) {
 				business.Use(entitlement.Guard(a.license, entitlement.Core))
 				notes.Routes(business, notes.NewService(a.pool), a.logger)
+				stockmedia.Routes(business, a.stock, a.logger)
+				pageai.Routes(business, a.ai, httpx.Limit(limits.AI, authn.ByUser,
+					"Terlalu banyak permintaan ke asisten AI. Tunggu sebentar lalu coba lagi."), a.logger)
 			})
 		})
 	}, nil

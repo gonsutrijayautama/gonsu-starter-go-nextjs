@@ -8,14 +8,18 @@ import { cn } from "cn"
 import { Badge } from "@/components/reui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 
-import { LinkButton, resolveLink, SectionTitle } from "../blocks"
+import { editable, hasText, LinkButton, resolveLink, SectionTitle, type InlineText } from "../blocks"
 import { buttonEffectClass, type ButtonEffect } from "../effects"
 import { initials } from "../elements"
 import { dicebearAvatar } from "../extras"
 
 // Bagian kecil yang dipakai bersama oleh blok siap pakai (library/*).
 
-/** Pengantar bagian: label kecil, judul, dan kalimat di bawahnya. */
+/**
+ * Pengantar bagian: label kecil, judul, dan kalimat di bawahnya. Ketiganya bisa
+ * diketik langsung di kanvas; label kecil dan kalimat yang kosong tidak tampil
+ * (diisi lewat panel), judul yang kosong menjadi tempat mengetik di editor.
+ */
 export function SectionIntro({
   eyebrow,
   title,
@@ -23,23 +27,24 @@ export function SectionIntro({
   align = "center",
   className,
 }: {
-  eyebrow?: string
-  title?: string
-  subtitle?: string
+  eyebrow?: InlineText
+  title?: InlineText
+  subtitle?: InlineText
   align?: "center" | "left"
   className?: string
 }) {
-  if (!eyebrow && !title && !subtitle) return null
+  const heading = editable(title, "Judul bagian")
+  if (!hasText(eyebrow) && !heading && !hasText(subtitle)) return null
   const center = align === "center"
   return (
     <div className={cn("flex flex-col gap-3", center ? "mx-auto max-w-2xl items-center text-center" : "max-w-2xl items-start", className)}>
-      {eyebrow ? (
+      {hasText(eyebrow) ? (
         <Badge variant="outline" radius="full">
           {eyebrow}
         </Badge>
       ) : null}
-      {title ? <SectionTitle>{title}</SectionTitle> : null}
-      {subtitle ? <p className="page-lead text-lg text-pretty text-muted-foreground">{subtitle}</p> : null}
+      {heading ? <SectionTitle>{heading}</SectionTitle> : null}
+      {hasText(subtitle) ? <p className="page-lead text-lg text-pretty text-muted-foreground">{subtitle}</p> : null}
     </div>
   )
 }
@@ -58,6 +63,14 @@ export function columnsFor(count: number): string {
   if (count === 2) return "md:grid-cols-2"
   if (count === 4) return "md:grid-cols-2 lg:grid-cols-4"
   return "md:grid-cols-2 lg:grid-cols-3"
+}
+
+/**
+ * Kisi kartu menurut jumlahnya; satu atau dua kartu tidak melebar sepanjang
+ * bagian, supaya tidak tampak seperti kisi yang kehilangan isinya.
+ */
+export function cardColumns(count: number): string {
+  return cn(columnsFor(count), count === 1 && "mx-auto w-full max-w-md", count === 2 && "mx-auto w-full max-w-3xl")
 }
 
 /** Logo mitra: gambar, atau namanya bila tanpa gambar. `grayscale`: berwarna saat disorot. */
@@ -132,14 +145,14 @@ export function Buttons({
   puck,
   className,
 }: {
-  primary: { label: string; link: string }
-  secondary?: { label: string; link: string }
+  primary: { label: InlineText; link: string }
+  secondary?: { label: InlineText; link: string }
   effect?: ButtonEffect
   align?: "left" | "center"
   puck: PuckContext
   className?: string
 }) {
-  const shown = (primary.label.trim() && resolveLink(primary.link, puck)) || (secondary?.label.trim() && resolveLink(secondary.link, puck))
+  const shown = (hasText(primary.label) && resolveLink(primary.link, puck)) || (secondary && hasText(secondary.label) && resolveLink(secondary.link, puck))
   if (!shown) return null
   return (
     <div className={cn("flex flex-wrap gap-3", align === "center" && "justify-center", className)}>
@@ -150,7 +163,7 @@ export function Buttons({
 }
 
 /** Pengumuman kecil berbentuk kapsul di atas judul pembuka. */
-export function AnnouncementPill({ text, link, puck }: { text: string; link: string; puck: PuckContext }) {
+export function AnnouncementPill({ text, link, puck }: { text: InlineText; link: string; puck: PuckContext }) {
   const target = resolveLink(link, puck)
   const content = (
     <>

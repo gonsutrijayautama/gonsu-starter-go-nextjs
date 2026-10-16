@@ -59,7 +59,7 @@ export const styleGuides: Record<DesignStyle, { label: string; hint: string; rul
 }
 
 /** Urutan bagian yang disarankan menurut jenis halaman (nama "type"). */
-const recipes: [RegExp, string][] = [
+export const recipes: [RegExp, string][] = [
   [/beranda/i, "Hero → Logos atau Stats → Features → Services atau PriceList → Testimonials → Faq → CallToAction → Location"],
   [/layanan/i, "PageTitle → Services → Steps → Pricing → Testimonials → Faq → CallToAction"],
   [/menu|harga/i, "PageTitle atau Hero → PriceList → Promo → Reviews atau Testimonials → Location"],
@@ -108,7 +108,8 @@ function fieldLines(fields: Record<string, FieldSpec>, depth = 1): string {
         spec.kind === "enum" && spec.options.some((option) => option.label !== option.value)
           ? ` (${spec.options.map((option) => `${option.value} = ${option.label}`).join("; ")})`
           : ""
-      return `${indent}${key}: ${typeOf(spec)} — ${spec.label}${choices}`
+      const hint = spec.kind === "text" && spec.hint ? ` (petunjuk: ${spec.hint})` : ""
+      return `${indent}${key}: ${typeOf(spec)} — ${spec.label}${choices}${hint}`
     })
     .join("\n")
 }
@@ -127,17 +128,37 @@ function catalogText(catalog: BlockSpec[]): string {
 /** Contoh hasil yang bagus: pendek, tapi menunjukkan isi spesifik, variasi susunan, dan ritme latar. */
 const example = `{
   "content": [
-    { "type": "Hero", "props": { "variant": "split", "badge_text": "Buka setiap hari 10.00–22.00", "title": "Bakso urat hangat,", "highlight": "kuah kaldu 8 jam", "effect": "accent",
-      "subtitle": "Bakso urat kenyal dan mie buatan sendiri. Makan di tempat atau pesan antar ke rumah.", "primary_label": "Pesan lewat WhatsApp", "primary_link": "#kontak",
-      "secondary_label": "Lihat menu", "secondary_link": "#menu", "image": null, "proof": "yes", "proof_rating": 4.8, "proof_text": "Disukai 2.000+ pelanggan di Bandung",
+    { "type": "Hero", "props": { "variant": "split", "badge_text": "Konsultasi lewat WhatsApp", "title": "Dikerjakan rapi,", "highlight": "selesai tepat waktu", "effect": "accent",
+      "subtitle": "Ceritakan kebutuhan Anda; pilihan dan harganya kami jelaskan sebelum mulai.", "primary_label": "Hubungi lewat WhatsApp", "primary_link": "#kontak",
+      "secondary_label": "Lihat layanan", "secondary_link": "#layanan", "image": null, "proof": "no",
       "appearance": { "background": "color", "color": "#fff7ed", "pattern": "dots" } } },
-    { "type": "Features", "props": { "layout": "icons", "eyebrow": "Kenapa kami", "title": "Rasa yang bikin kangen", "subtitle": "",
-      "items": [ { "icon": "flame", "title": "Kuah 8 jam", "description": "Kaldu sapi dimasak perlahan sejak subuh." },
-                 { "icon": "wheat", "title": "Mie buatan sendiri", "description": "Kenyal, tanpa pengawet, dibuat setiap pagi." },
-                 { "icon": "truck", "title": "Antar 30 menit", "description": "Gratis ongkir untuk 3 km pertama." } ],
+    { "type": "Features", "props": { "layout": "icons", "eyebrow": "Kenapa kami", "title": "Alasan pelanggan kembali lagi", "subtitle": "",
+      "items": [ { "icon": "clock", "title": "Tepat waktu", "description": "Jadwal disepakati di awal, lalu ditepati." },
+                 { "icon": "message-circle", "title": "Mudah dihubungi", "description": "Tanya dulu lewat WhatsApp sebelum memesan." },
+                 { "icon": "badge-check", "title": "Dicek ulang", "description": "Setiap pekerjaan diperiksa sebelum diserahkan." } ],
       "appearance": { "background": "none" } } }
   ]
 }`
+
+/** Aturan desain halaman baru, sama untuk wizard (`buildPrompt`) dan chat (`buildChatGuide`). */
+const designRules = [
+  "1. 6–9 bagian. Mulai dengan Hero (beranda/promo) atau PageTitle (halaman dalam); akhiri dengan CallToAction atau Location.",
+  '2. Ritme latar: selang-seling "none" dan "muted"/"color"; jangan dua bagian berwarna kuat berturut-turut; paling banyak dua bagian "inverse".',
+  "3. Variasikan susunan: jangan memakai susunan yang sama di dua bagian berurutan.",
+  "4. Daftar berisi 3–6 butir, kecuali daftar harga yang boleh lebih banyak.",
+  '5. Animasi muncul (appearance.reveal) "up" atau "fade" untuk sebagian bagian; jangan berlebihan.',
+]
+
+/** Aturan isi nomor 2–8. Aturan pertama (bahasa dan kekhususan isi) berbeda antara wizard dan chat. */
+const contentRules = [
+  "2. Judul paling banyak 8 kata; kalimat di bawah judul paling banyak 25 kata; tombol berupa kata kerja (Hubungi kami, Lihat layanan).",
+  "3. ISI SEMUA isian teks dan daftar yang tampil di susunan yang kamu pilih. Hanya isian gambar dan isian yang tidak dipakai susunan itu yang boleh dihilangkan.",
+  '4. Hanya pakai "type" dari katalog, dan hanya nilai yang tertulis untuk isian pilihan (mis. "yes" | "no").',
+  "5. Isian gambar selalu null — pemilik usaha mengunggah fotonya sendiri.",
+  `6. Ikon memakai nama ikon Lucide (huruf kecil, tanda hubung), misalnya: ${popularIcons.slice(0, 50).join(", ")}.`,
+  '7. Tautan berupa "#kontak", "/nama-halaman", atau alamat https://. Harga ditulis sebagai teks ("Rp25.000"), kecuali isian bertipe angka.',
+  "8. Isian HTML hanya boleh memakai <p>, <strong>, <em>, <ul>, <ol>, <li>, dan <a>.",
+]
 
 export function buildPrompt(brief: Brief, catalog: BlockSpec[], parts: BlockSpec[], site: Site, current?: unknown): string {
   const wanted = catalog.filter((block) => brief.blocks.includes(block.type)).map((block) => `${block.label} (${block.type})`)
@@ -184,24 +205,14 @@ export function buildPrompt(brief: Brief, catalog: BlockSpec[], parts: BlockSpec
     brief.notes ? `- Catatan dari pemilik usaha: ${brief.notes}` : null,
     "",
     "## Aturan desain",
-    "1. 6–9 bagian. Mulai dengan Hero (beranda/promo) atau PageTitle (halaman dalam); akhiri dengan CallToAction atau Location.",
-    '2. Ritme latar: selang-seling "none" dan "muted"/"color"; jangan dua bagian berwarna kuat berturut-turut; paling banyak dua bagian "inverse".',
-    "3. Variasikan susunan: jangan memakai susunan yang sama di dua bagian berurutan.",
-    "4. Daftar berisi 3–6 butir, kecuali menu/harga yang boleh lebih banyak.",
-    '5. Animasi muncul (appearance.reveal) "up" atau "fade" untuk sebagian bagian; jangan berlebihan.',
+    ...designRules,
     design
       ? '6. Bagian buatan sendiri dimulai dengan "Section" (atur appearance-nya), lalu isi slot "content" dengan Heading, Paragraph, Columns, Grid, Card, Button, dan seterusnya. Jaga tetap rapi: paling dalam 3 tingkat.'
       : null,
     "",
     "## Aturan isi",
-    "1. Bahasa Indonesia sesuai gaya bahasa di atas. Isi nyata dan spesifik untuk usaha ini, bukan teks contoh: sebut produk, keunggulan, angka, dan nama tempat bila wajar.",
-    "2. Judul paling banyak 8 kata; kalimat di bawah judul paling banyak 25 kata; tombol berupa kata kerja (Pesan sekarang, Lihat menu).",
-    "3. ISI SEMUA isian teks dan daftar yang tampil di susunan yang kamu pilih. Hanya isian gambar dan isian yang tidak dipakai susunan itu yang boleh dihilangkan.",
-    '4. Hanya pakai "type" dari katalog, dan hanya nilai yang tertulis untuk isian pilihan (mis. "yes" | "no").',
-    "5. Isian gambar selalu null — pemilik usaha mengunggah fotonya sendiri.",
-    `6. Ikon memakai nama ikon Lucide (huruf kecil, tanda hubung), misalnya: ${popularIcons.slice(0, 50).join(", ")}.`,
-    '7. Tautan berupa "#kontak", "/nama-halaman", atau alamat https://. Harga ditulis sebagai teks ("Rp25.000"), kecuali isian bertipe angka.',
-    "8. Isian HTML hanya boleh memakai <p>, <strong>, <em>, <ul>, <ol>, <li>, dan <a>.",
+    "1. Bahasa Indonesia sesuai gaya bahasa di atas. Isi nyata dan spesifik untuk usaha ini, bukan teks contoh: sebut produk, keunggulan, dan nama tempat dari data usaha atau permintaan. Angka hanya bila tertulis di sana.",
+    ...contentRules,
     "",
     "## Format dan contoh",
     'Bentuknya { "content": [ { "type": …, "props": { … } } ] }. Contoh dua bagian yang bagus:',
@@ -228,5 +239,63 @@ export function buildPrompt(brief: Brief, catalog: BlockSpec[], parts: BlockSpec
       "```"
     )
   }
+  return lines.filter((line): line is string => line !== null).join("\n")
+}
+
+/**
+ * Contoh dua bagian untuk chat. Berbeda dari `example` milik wizard: tanpa
+ * rating dan jumlah pelanggan, yang pada uji 2026-10-04 ditiru model menjadi
+ * angka karangan.
+ */
+const chatExample = [
+  '{ "type": "Hero", "props": { "variant": "split", "badge_text": "Layanan cepat dan rapi", "title": "Dikerjakan rapi,", "highlight": "selesai tepat waktu", "effect": "accent", "subtitle": "Pilihan dan harganya dijelaskan sebelum mulai.", "primary_label": "Hubungi lewat WhatsApp", "primary_link": "#kontak", "secondary_label": "Lihat layanan", "secondary_link": "#layanan", "image": null, "proof": "no", "appearance": { "background": "color", "color": "#fff7ed", "pattern": "dots" } } }',
+  '{ "type": "Features", "props": { "layout": "icons", "eyebrow": "Kenapa kami", "title": "Alasan pelanggan kembali lagi", "subtitle": "", "items": [ { "icon": "clock", "title": "Tepat waktu", "description": "Jadwal disepakati di awal, lalu ditepati." }, { "icon": "badge-check", "title": "Bergaransi", "description": "Hasil yang kurang pas diperbaiki tanpa biaya." }, { "icon": "truck", "title": "Bisa diantar", "description": "Diantar ke alamat Anda di dalam kota." } ], "appearance": { "background": "none" } } }',
+].join("\n")
+
+/**
+ * Bahan untuk asisten chat (remote.ts): data usaha, aturan desain dan isi,
+ * dan katalog blok. Cara menjawabnya — perintah apa saja yang ada — ditentukan
+ * server (internal/pageai), jadi tidak ditulis di sini.
+ */
+export function buildChatGuide(catalog: BlockSpec[], site: Site): string {
+  const services = site.services.map((service) => [service.title, service.description].filter(Boolean).join(": ")).filter(Boolean)
+  // Tanpa satu pun dari ini model tidak tahu usahanya menjual apa, dan pada uji 2026-10-04 ia menebak sendiri.
+  const described = Boolean(site.industry || services.length > 0 || site.summary || site.about.text)
+  const lines: (string | null)[] = [
+    "## Tentang usaha",
+    `- Nama usaha: ${site.name || "(belum diisi)"}`,
+    site.industry ? `- Bidang: ${site.industry}` : null,
+    site.contact.city ? `- Kota: ${site.contact.city}` : null,
+    services.length > 0 ? `- Layanan di profil: ${services.join("; ")}` : null,
+    site.summary ? `- Ringkasan usaha: ${site.summary}` : null,
+    site.about.text ? `- Cerita usaha: ${site.about.text}` : null,
+    site.tagline ? `- Slogan: ${site.tagline}` : null,
+    described
+      ? null
+      : "- Bidang usaha dan produknya BELUM diisi di profil. Jangan menebak bidangnya dari nama usaha. Bila pengguna belum menyebut apa yang dijual atau dikerjakan usaha ini di percakapan, jangan ubah halaman: tanyakan dulu.",
+    "- Alamat, telepon, jam buka, dan media sosial sudah ada di sistem: blok Contact dan Location menampilkannya otomatis. Jangan menulisnya di isian lain.",
+    "",
+    "## Urutan bagian yang disarankan untuk halaman baru (boleh disesuaikan)",
+    ...recipes.map(([pattern, order]) => `- Halaman ${pattern.source.replaceAll("|", " atau ")}: ${order}`),
+    "",
+    "## Aturan desain untuk halaman baru",
+    ...designRules,
+    "",
+    "## Aturan isi",
+    "1. Bahasa Indonesia yang santai dan langsung, kecuali pengguna meminta gaya lain. Isi spesifik untuk usaha ini — produk dan keunggulannya dari data usaha — bukan kalimat umum yang cocok untuk usaha mana pun.",
+    ...contentRules,
+    '9. Testimoni, ulasan, logo mitra, angka capaian, penghargaan, anggota tim, harga, dan jam buka adalah fakta yang hanya diketahui pemilik usaha. Bila tidak ada di data usaha atau di percakapan, JANGAN mengarangnya dan jangan mengisinya dengan teks contoh: biarkan isiannya kosong ("" untuk teks, 0 untuk angka, [] untuk jam buka). Editor menandai isian kosong sebagai isian yang perlu diisi, dan pengunjung tidak melihatnya. Lalu sebut di kalimat untuk pengguna bagian mana yang perlu diisi sendiri.',
+    "",
+    "## Bentuk satu bagian dan contoh",
+    'Satu bagian berbentuk { "type": …, "props": { … } }. Dua contoh bagian yang bagus (tiru bentuknya, jangan menyalin kalimatnya):',
+    chatExample,
+    "",
+    "## Tampilan bagian",
+    'Ditulis di props.appearance, bukan sejajar dengan isian lain. Setiap bagian baru menulis appearance-nya, paling sedikit "background".',
+    fieldLines(appearanceSpec),
+    "",
+    "## Katalog blok siap pakai",
+    catalogText(catalog),
+  ]
   return lines.filter((line): line is string => line !== null).join("\n")
 }

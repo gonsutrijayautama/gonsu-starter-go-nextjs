@@ -11,9 +11,10 @@ import { Button } from "@/components/ui/button"
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from "@/components/ui/carousel"
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog"
 
-import { BlockImage, resolveLink, Section, useOverlayPortal, type BlockProps } from "../blocks"
+import { BlockImage, orHint, resolveLink, Section, shownItems, useOverlayPortal, type BlockProps, type InlineText } from "../blocks"
+import { MediaPickButton, itemField } from "../media-picker"
 import { imageField, introFields, layoutField, linkField, showFields, sk, yesNoField } from "../fields"
-import { SectionIntro } from "./kit"
+import { cardColumns, SectionIntro } from "./kit"
 
 // Galeri, sebelum–sesudah, dan portofolio.
 
@@ -24,9 +25,9 @@ const { t, s, i, c, a, o, w, intro } = sk
 type Photo = { image: string | null; caption: string }
 
 export type GalleryProps = {
-  eyebrow: string
-  title: string
-  subtitle: string
+  eyebrow: InlineText
+  title: InlineText
+  subtitle: InlineText
   variant: "grid" | "masonry" | "carousel" | "bento"
   columns: "2" | "3" | "4"
   lightbox: "yes" | "no"
@@ -36,8 +37,32 @@ export type GalleryProps = {
 const gridColumns = { "2": "grid-cols-2", "3": "grid-cols-2 lg:grid-cols-3", "4": "grid-cols-2 lg:grid-cols-4" }
 const masonryColumns = { "2": "columns-2", "3": "columns-2 lg:columns-3", "4": "columns-2 lg:columns-4" }
 const carouselBasis = { "2": "basis-4/5 sm:basis-1/2", "3": "basis-4/5 sm:basis-1/2 lg:basis-1/3", "4": "basis-4/5 sm:basis-1/3 lg:basis-1/4" }
-/** Bento: pola ukuran petak yang berulang setiap enam foto. */
-const bentoSpan = ["col-span-2 row-span-2", "", "", "col-span-2", "", ""]
+
+const bentoBig = "col-span-2 row-span-2"
+const bentoWide = "col-span-2"
+
+/**
+ * Ukuran petak bento untuk `count` foto (dua foto atau lebih). Foto
+ * dikelompokkan supaya setiap kelompok mengisi penuh 4×2 petak (2×4 di layar
+ * sempit): kelompok empat (besar, dua kecil, lebar), dan sisa pembagiannya
+ * menjadi kelompok dua, tiga, atau lima. Pola yang berulang tetap akan
+ * menyisakan lubang di ujung kisi bila jumlahnya tidak pas.
+ */
+function bentoSpans(count: number): string[] {
+  const rest = count % 4
+  // Sisa satu tidak bisa berdiri sendiri: digabung dengan empat terakhir menjadi lima.
+  const sizes: number[] = Array.from({ length: Math.max(0, Math.floor(count / 4) - (rest === 1 ? 1 : 0)) }, () => 4)
+  if (rest === 1) sizes.push(5)
+  else if (rest > 1) sizes.push(rest)
+  return sizes.flatMap((size, group) => {
+    // Kelompok berselang-seling: foto besar di kiri, lalu di kanan.
+    const mirrored = group % 2 === 1
+    if (size === 2) return [bentoBig, bentoBig]
+    if (size === 3) return mirrored ? [bentoWide, bentoBig, bentoWide] : [bentoBig, bentoWide, bentoWide]
+    if (size === 5) return mirrored ? ["", "", bentoBig, "", ""] : [bentoBig, "", "", "", ""]
+    return mirrored ? ["", "", bentoBig, bentoWide] : [bentoBig, "", "", bentoWide]
+  })
+}
 
 /** Tampilan penuh satu foto, dengan foto sebelum dan sesudahnya. */
 function Lightbox({ photos, index, onIndex }: { photos: Photo[]; index: number | null; onIndex: (index: number | null) => void }) {
@@ -83,9 +108,13 @@ function Lightbox({ photos, index, onIndex }: { photos: Photo[]; index: number |
 
 export function GalleryBlock({ eyebrow, title, subtitle, variant, columns, lightbox, items, puck }: BlockProps<GalleryProps>) {
   const [open, setOpen] = useState<number | null>(null)
-  const photos = puck.isEditing ? items : items.filter((item) => item.image)
+  const photos = shownItems(items, (item) => Boolean(item.image), puck)
   const zoom = lightbox === "yes" && !puck.isEditing
-  const cols = columns in gridColumns ? columns : "3"
+  // Kolom tidak lebih banyak dari fotonya, supaya baris pertama tidak setengah kosong.
+  const chosen = columns in gridColumns ? Number(columns) : 3
+  const cols = String(Math.min(chosen, Math.max(photos.length, 2))) as GalleryProps["columns"]
+  // Tanpa foto, yang tersisa bagi pengunjung hanya judul: bagian ini tidak dirender.
+  if (photos.length === 0 && !puck.isEditing) return null
 
   const tile = (photo: Photo, index: number, className: string, natural = false) => {
     const picture =
@@ -93,7 +122,7 @@ export function GalleryBlock({ eyebrow, title, subtitle, variant, columns, light
         // Susunan bata: tinggi foto mengikuti foto aslinya.
         <Image src={photo.image} alt={photo.caption} width={800} height={600} unoptimized className="h-auto w-full rounded-xl border object-cover" />
       ) : (
-        <BlockImage src={photo.image} alt={photo.caption} className={className} puck={puck} />
+        <BlockImage src={photo.image} alt={photo.caption} className={className} puck={puck} field={itemField("items", items, photo)} />
       )
     return (
       <figure className="flex h-full flex-col gap-2">
@@ -115,7 +144,10 @@ export function GalleryBlock({ eyebrow, title, subtitle, variant, columns, light
   }
 
   let body
-  if (variant === "masonry") {
+  if (photos.length === 1) {
+    // Satu foto di susunan apa pun: satu foto besar di tengah, bukan satu petak kecil di kisi.
+    body = <div className="mx-auto w-full max-w-3xl">{tile(photos[0], 0, "aspect-4/3 w-full", variant === "masonry")}</div>
+  } else if (variant === "masonry") {
     body = (
       <div className={cn("gap-4", masonryColumns[cols])}>
         {photos.map((photo, index) => (
@@ -135,15 +167,20 @@ export function GalleryBlock({ eyebrow, title, subtitle, variant, columns, light
             </CarouselItem>
           ))}
         </CarouselContent>
-        <CarouselPrevious className="left-3 bg-background/80 backdrop-blur" />
-        <CarouselNext className="right-3 bg-background/80 backdrop-blur" />
+        {photos.length > 1 ? (
+          <>
+            <CarouselPrevious className="left-3 bg-background/80 backdrop-blur" />
+            <CarouselNext className="right-3 bg-background/80 backdrop-blur" />
+          </>
+        ) : null}
       </Carousel>
     )
   } else if (variant === "bento") {
+    const spans = bentoSpans(photos.length)
     body = (
-      <ul className="grid auto-rows-[9rem] grid-cols-2 gap-3 sm:auto-rows-[11rem] md:grid-cols-4">
+      <ul className="grid auto-rows-36 grid-cols-2 gap-3 sm:auto-rows-44 md:grid-cols-4">
         {photos.map((photo, index) => (
-          <li key={index} className={cn(bentoSpan[index % bentoSpan.length])}>
+          <li key={index} className={spans[index]}>
             {tile(photo, index, "size-full")}
           </li>
         ))}
@@ -192,7 +229,7 @@ export const galleryConfig: ComponentConfig<GalleryProps> = {
     ...introFields,
     columns: {
       type: "radio",
-      label: "Jumlah kolom",
+      label: "Jumlah kolom paling banyak",
       options: [
         { label: "2", value: "2" },
         { label: "3", value: "3" },
@@ -206,7 +243,7 @@ export const galleryConfig: ComponentConfig<GalleryProps> = {
       max: 60,
       getItemSummary: (item, index) => item.caption || `Foto ${(index ?? 0) + 1}`,
       defaultItemProps: { image: null, caption: "" },
-      arrayFields: { image: imageField("Foto"), caption: { type: "text", label: "Keterangan" } },
+      arrayFields: { image: imageField("Foto"), caption: { type: "text", label: "Keterangan foto (boleh kosong)" } },
     },
   },
   resolveFields: showFields<GalleryProps>({ columns: (props) => props.variant !== "bento" }),
@@ -227,9 +264,9 @@ export const galleryConfig: ComponentConfig<GalleryProps> = {
 type Pair = { before: string | null; after: string | null; caption: string }
 
 export type BeforeAfterProps = {
-  eyebrow: string
-  title: string
-  subtitle: string
+  eyebrow: InlineText
+  title: InlineText
+  subtitle: InlineText
   variant: "slider" | "side"
   before_label: string
   after_label: string
@@ -240,7 +277,20 @@ export type BeforeAfterProps = {
 const ratioClass = { "16/9": "aspect-video", "4/3": "aspect-4/3", "1/1": "aspect-square" }
 
 /** Dua foto bertumpuk; garis di tengah digeser (tetikus, sentuh, atau panah) untuk membandingkan. */
-function CompareSlider({ pair, labels, ratio, puck }: { pair: Pair; labels: [string, string]; ratio: string; puck: PuckContext }) {
+function CompareSlider({
+  pair,
+  labels,
+  fields,
+  ratio,
+  puck,
+}: {
+  pair: Pair
+  labels: [string, string]
+  /** Jalur isian foto sebelum dan sesudah di props blok, supaya fotonya bisa dipilih dari kanvas. */
+  fields: [string | undefined, string | undefined]
+  ratio: string
+  puck: PuckContext
+}) {
   const [position, setPosition] = useState(50)
   const area = useRef<HTMLDivElement>(null)
   const portal = useOverlayPortal(puck)
@@ -248,6 +298,27 @@ function CompareSlider({ pair, labels, ratio, puck }: { pair: Pair; labels: [str
     const box = area.current?.getBoundingClientRect()
     if (!box || box.width === 0) return
     setPosition(Math.min(100, Math.max(0, ((clientX - box.left) / box.width) * 100)))
+  }
+  const pane = (side: 0 | 1) => {
+    const src = side === 0 ? pair.before : pair.after
+    const image = <BlockImage src={src} alt={labels[side]} className="size-full rounded-none border-0" puck={puck} field={fields[side]} />
+    if (!src) {
+      // Kosong (hanya di editor): tempatnya selebar sisinya sendiri, supaya
+      // penanda pilih gambarnya tidak tertutup foto sisi lain atau pegangan.
+      const width = side === 0 ? position : 100 - position
+      return (
+        <div className={cn("absolute inset-y-0", side === 0 ? "left-0" : "right-0")} style={{ width: `${width}%` }}>
+          {image}
+        </div>
+      )
+    }
+    // Foto sebelum menutupi foto sesudah, dipotong sampai garis pembanding.
+    const clip = side === 0 ? { clipPath: `inset(0 ${100 - position}% 0 0)` } : undefined
+    return (
+      <div className="absolute inset-0" style={clip}>
+        {image}
+      </div>
+    )
   }
   return (
     <div
@@ -258,6 +329,9 @@ function CompareSlider({ pair, labels, ratio, puck }: { pair: Pair; labels: [str
       }}
       className={cn("relative touch-none overflow-hidden rounded-2xl border bg-muted select-none", ratio)}
       onPointerDown={(event: PointerEvent<HTMLDivElement>) => {
+        // Di editor foto bisa diklik untuk dipilih (role="button"); menangkap
+        // penunjuk di sini akan membelokkan kliknya. Geseran lewat pegangannya.
+        if (event.target instanceof Element && event.target.closest('[role="button"]')) return
         event.currentTarget.setPointerCapture(event.pointerId)
         moveTo(event.clientX)
       }}
@@ -265,10 +339,8 @@ function CompareSlider({ pair, labels, ratio, puck }: { pair: Pair; labels: [str
         if (event.currentTarget.hasPointerCapture(event.pointerId)) moveTo(event.clientX)
       }}
     >
-      <BlockImage src={pair.after} alt={labels[1]} className="absolute inset-0 size-full rounded-none border-0" puck={puck} />
-      <div className="absolute inset-0" style={{ clipPath: `inset(0 ${100 - position}% 0 0)` }}>
-        <BlockImage src={pair.before} alt={labels[0]} className="size-full rounded-none border-0" puck={puck} />
-      </div>
+      {pane(1)}
+      {pane(0)}
       <span className="absolute top-3 left-3 rounded-full bg-black/60 px-2.5 py-1 text-xs font-medium text-white">{labels[0]}</span>
       <span className="absolute top-3 right-3 rounded-full bg-black/60 px-2.5 py-1 text-xs font-medium text-white">{labels[1]}</span>
       <div aria-hidden="true" className="absolute inset-y-0 w-0.5 -translate-x-1/2 bg-white shadow" style={{ left: `${position}%` }} />
@@ -293,9 +365,11 @@ function CompareSlider({ pair, labels, ratio, puck }: { pair: Pair; labels: [str
 }
 
 export function BeforeAfterBlock({ eyebrow, title, subtitle, variant, before_label, after_label, ratio, items, puck }: BlockProps<BeforeAfterProps>) {
-  const pairs = puck.isEditing ? items : items.filter((pair) => pair.before && pair.after)
+  const pairs = shownItems(items, (pair) => Boolean(pair.before && pair.after), puck)
   const labels: [string, string] = [before_label || "Sebelum", after_label || "Sesudah"]
   const shape = ratioClass[ratio] ?? "aspect-4/3"
+  // Tanpa pasangan foto yang lengkap, bagi pengunjung hanya tersisa judul: tidak dirender.
+  if (pairs.length === 0 && !puck.isEditing) return null
   return (
     <Section className="flex flex-col gap-10">
       <SectionIntro eyebrow={eyebrow} title={title} subtitle={subtitle} />
@@ -306,7 +380,13 @@ export function BeforeAfterBlock({ eyebrow, title, subtitle, variant, before_lab
               <div className="grid grid-cols-2 gap-3">
                 {([pair.before, pair.after] as const).map((image, side) => (
                   <figure key={side} className="relative">
-                    <BlockImage src={image} alt={labels[side] ?? ""} className={cn("w-full rounded-2xl", shape)} puck={puck} />
+                    <BlockImage
+                      src={image}
+                      alt={labels[side] ?? ""}
+                      className={cn("w-full rounded-2xl", shape)}
+                      puck={puck}
+                      field={itemField("items", items, pair, side === 0 ? "before" : "after")}
+                    />
                     <figcaption className="absolute top-3 left-3 rounded-full bg-black/60 px-2.5 py-1 text-xs font-medium text-white">
                       {labels[side]}
                     </figcaption>
@@ -314,7 +394,13 @@ export function BeforeAfterBlock({ eyebrow, title, subtitle, variant, before_lab
                 ))}
               </div>
             ) : (
-              <CompareSlider pair={pair} labels={labels} ratio={shape} puck={puck} />
+              <CompareSlider
+                pair={pair}
+                labels={labels}
+                fields={[itemField("items", items, pair, "before"), itemField("items", items, pair, "after")]}
+                ratio={shape}
+                puck={puck}
+              />
             )}
             {pair.caption ? <p className="text-center text-sm text-muted-foreground">{pair.caption}</p> : null}
           </li>
@@ -349,13 +435,18 @@ export const beforeAfterConfig: ComponentConfig<BeforeAfterProps> = {
       max: 12,
       getItemSummary: (pair, index) => pair.caption || `Pasangan ${(index ?? 0) + 1}`,
       defaultItemProps: { before: null, after: null, caption: "" },
-      arrayFields: { before: imageField("Foto sebelum"), after: imageField("Foto sesudah"), caption: { type: "text", label: "Keterangan" } },
+      arrayFields: {
+        before: imageField("Foto sebelum"),
+        after: imageField("Foto sesudah"),
+        caption: { type: "text", label: "Keterangan pasangan foto (boleh kosong)" },
+      },
     },
   },
   defaultProps: {
     eyebrow: "Hasil kerja",
     title: "Sebelum dan sesudah",
-    subtitle: "Geser garisnya untuk melihat perbedaannya.",
+    // Netral untuk kedua susunan: "geser garisnya" salah untuk susunan berdampingan.
+    subtitle: "Lihat sendiri perbedaannya.",
     variant: "slider",
     before_label: "Sebelum",
     after_label: "Sesudah",
@@ -370,9 +461,9 @@ export const beforeAfterConfig: ComponentConfig<BeforeAfterProps> = {
 type Project = { image: string | null; title: string; category: string; description: string; link: string }
 
 export type PortfolioProps = {
-  eyebrow: string
-  title: string
-  subtitle: string
+  eyebrow: InlineText
+  title: InlineText
+  subtitle: InlineText
   variant: "grid" | "overlay" | "list"
   filter: "yes" | "no"
   items: Project[]
@@ -392,64 +483,98 @@ function ProjectLink({ project, puck, className }: { project: Project; puck: Puc
   )
 }
 
+
 export function PortfolioBlock({ eyebrow, title, subtitle, variant, filter, items, puck }: BlockProps<PortfolioProps>) {
   const [category, setCategory] = useState("")
   const portal = useOverlayPortal(puck)
-  const projects = items.filter((project) => project.title.trim() || project.image)
+  const projects = shownItems(items, (project) => Boolean(project.title.trim() || project.image), puck)
   const categories = [...new Set(projects.map((project) => project.category.trim()).filter(Boolean))]
   const shown = category ? projects.filter((project) => project.category.trim() === category) : projects
+  // Tanpa proyek yang terisi, bagi pengunjung hanya tersisa judul: tidak dirender.
+  if (projects.length === 0 && !puck.isEditing) return null
+  // Kolom dari semua proyek, bukan hasil saringan: susunannya tidak melompat saat kategori diganti.
+  const columns = cardColumns(projects.length)
+  const name = (project: Project) => orHint(project.title, "Nama proyek", puck)
+  const story = (project: Project, className: string) =>
+    project.description.trim() || puck.isEditing ? <p className={className}>{orHint(project.description, "Cerita singkat proyeknya", puck)}</p> : null
 
   let body
   if (variant === "overlay") {
     body = (
-      <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {shown.map((project, index) => (
-          <li key={index} className="group relative isolate aspect-square overflow-hidden rounded-2xl">
-            <BlockImage
-              src={project.image}
-              alt=""
-              className="absolute inset-0 -z-10 size-full rounded-none border-0 transition duration-500 group-hover:scale-105"
-              puck={puck}
-            />
-            <div className="flex size-full flex-col justify-end gap-1 bg-linear-to-t from-black/80 via-black/20 to-transparent p-5 text-white">
-              {project.category ? <span className="text-xs font-medium tracking-wide uppercase opacity-80">{project.category}</span> : null}
-              <span className="text-lg font-semibold">{project.title}</span>
-              <ProjectLink project={project} puck={puck} className="text-white" />
-            </div>
-          </li>
-        ))}
+      <ul className={cn("grid gap-4", columns)}>
+        {shown.map((project, index) => {
+          // Tanpa foto, gradien gelap di atas latar kosong terlihat seperti gambar rusak:
+          // pengunjung mendapat kartu teks biasa.
+          const plain = !project.image && !puck.isEditing
+          return (
+            <li key={index} className={cn("group relative isolate aspect-square overflow-hidden rounded-2xl", plain && "border bg-muted")}>
+              {plain ? null : (
+                <BlockImage
+                  src={project.image}
+                  alt=""
+                  className="absolute inset-0 -z-10 size-full rounded-none border-0 transition duration-500 group-hover:scale-105"
+                  puck={puck}
+                />
+              )}
+              {/* Fotonya latar kartu: yang bisa diklik tombol ini, bukan seluruh kartu. */}
+              <MediaPickButton puck={puck} field={itemField("items", items, project)} filled={Boolean(project.image)} className="top-3 right-3" />
+              <div
+                className={cn(
+                  "flex size-full flex-col justify-end gap-1 p-5",
+                  plain ? "text-foreground" : "bg-linear-to-t from-black/80 via-black/20 to-transparent text-white"
+                )}
+              >
+                {project.category ? (
+                  <span className={cn("text-xs font-medium tracking-wide uppercase", plain ? "text-muted-foreground" : "opacity-80")}>{project.category}</span>
+                ) : null}
+                <span className="text-lg font-semibold">{name(project)}</span>
+                <ProjectLink project={project} puck={puck} className={plain ? undefined : "text-white"} />
+              </div>
+            </li>
+          )
+        })}
       </ul>
     )
   } else if (variant === "list") {
     body = (
       <ul className="flex flex-col gap-12">
-        {shown.map((project, index) => (
-          <li key={index} className="grid items-center gap-6 md:grid-cols-2 md:gap-12">
-            <BlockImage src={project.image} alt="" className={cn("aspect-4/3 w-full rounded-2xl", index % 2 === 1 && "md:order-2")} puck={puck} />
-            <div className="flex flex-col items-start gap-3">
-              {project.category ? (
-                <Badge variant="outline" radius="full">
-                  {project.category}
-                </Badge>
-              ) : null}
-              <h3 className="text-2xl font-semibold tracking-tight">{project.title}</h3>
-              {project.description ? <p className="text-pretty text-muted-foreground">{project.description}</p> : null}
-              <ProjectLink project={project} puck={puck} />
-            </div>
-          </li>
-        ))}
+        {shown.map((project, index) => {
+          // Tanpa foto (pengunjung): teksnya sendiri, tanpa separuh baris yang kosong.
+          const pictured = Boolean(project.image) || puck.isEditing
+          return (
+            <li key={index} className={cn("grid items-center gap-6 md:gap-12", pictured ? "md:grid-cols-2" : "max-w-2xl")}>
+              <BlockImage
+                src={project.image}
+                alt=""
+                className={cn("aspect-4/3 w-full rounded-2xl", index % 2 === 1 && "md:order-2")}
+                puck={puck}
+                field={itemField("items", items, project)}
+              />
+              <div className="flex flex-col items-start gap-3">
+                {project.category ? (
+                  <Badge variant="outline" radius="full">
+                    {project.category}
+                  </Badge>
+                ) : null}
+                <h3 className="text-2xl font-semibold tracking-tight">{name(project)}</h3>
+                {story(project, "text-pretty text-muted-foreground")}
+                <ProjectLink project={project} puck={puck} />
+              </div>
+            </li>
+          )
+        })}
       </ul>
     )
   } else {
     body = (
-      <ul className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+      <ul className={cn("grid gap-6", columns)}>
         {shown.map((project, index) => (
           <li key={index} className="flex flex-col overflow-hidden rounded-2xl border bg-card shadow-xs">
-            <BlockImage src={project.image} alt="" className="aspect-4/3 w-full rounded-none border-0 border-b" puck={puck} />
+            <BlockImage src={project.image} alt="" className="aspect-4/3 w-full rounded-none border-0 border-b" puck={puck} field={itemField("items", items, project)} />
             <div className="flex flex-1 flex-col items-start gap-2 p-5">
               {project.category ? <span className="text-xs font-medium text-muted-foreground">{project.category}</span> : null}
-              <h3 className="font-semibold">{project.title}</h3>
-              {project.description ? <p className="text-sm text-pretty text-muted-foreground">{project.description}</p> : null}
+              <h3 className="font-semibold">{name(project)}</h3>
+              {story(project, "text-sm text-pretty text-muted-foreground")}
               <ProjectLink project={project} puck={puck} className="mt-auto pt-2" />
             </div>
           </li>
@@ -483,7 +608,9 @@ export function PortfolioBlock({ eyebrow, title, subtitle, variant, filter, item
   )
 }
 
-const project = (title: string, category: string, description: string): Project => ({ image: null, title, category, description, link: "" })
+// Contoh bawaan kosong: nama, kategori, dan cerita proyek adalah fakta usaha,
+// jadi editor menampilkan petunjuk dan pengunjung tidak melihat apa pun.
+const emptyProject = (): Project => ({ image: null, title: "", category: "", description: "", link: "" })
 
 export const portfolioConfig: ComponentConfig<PortfolioProps> = {
   label: "Portofolio",
@@ -520,13 +647,13 @@ export const portfolioConfig: ComponentConfig<PortfolioProps> = {
       label: "Proyek",
       max: 40,
       getItemSummary: (entry) => entry.title || "Proyek",
-      defaultItemProps: project("Nama proyek", "", ""),
+      defaultItemProps: emptyProject(),
       arrayFields: {
         image: imageField("Foto"),
         title: { type: "text", label: "Nama proyek" },
-        category: { type: "text", label: "Kategori", placeholder: "Rumah, Kantor, Toko…" },
-        description: { type: "textarea", label: "Keterangan" },
-        link: { ...linkField, label: "Tautan (boleh kosong)" },
+        category: { type: "text", label: "Kategori", placeholder: "Perorangan, Usaha, Perusahaan…" },
+        description: { type: "textarea", label: "Cerita singkat proyek (boleh kosong)" },
+        link: { ...linkField, label: "Tautan halaman proyek (boleh kosong)" },
       },
     },
   },
@@ -536,11 +663,7 @@ export const portfolioConfig: ComponentConfig<PortfolioProps> = {
     subtitle: "Sebagian proyek yang sudah kami kerjakan.",
     variant: "grid",
     filter: "yes",
-    items: [
-      project("Renovasi dapur", "Rumah", "Dapur sempit jadi lega dan terang."),
-      project("Interior kafe", "Toko", "Nuansa hangat untuk 40 kursi."),
-      project("Ruang rapat", "Kantor", "Akustik lebih baik, tampilan rapi."),
-    ],
+    items: [emptyProject(), emptyProject(), emptyProject()],
   },
   render: (props) => <PortfolioBlock {...props} />,
 }

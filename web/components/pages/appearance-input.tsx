@@ -12,6 +12,7 @@ import {
   ArrowUpIcon,
   BanIcon,
   CheckIcon,
+  CloudIcon,
   CrosshairIcon,
   FoldVerticalIcon,
   Grid2x2Icon,
@@ -22,6 +23,7 @@ import {
   MonitorIcon,
   MonitorSmartphoneIcon,
   MoonIcon,
+  PauseIcon,
   RadarIcon,
   RectangleVerticalIcon,
   SlashIcon,
@@ -30,6 +32,7 @@ import {
   SparklesIcon,
   SunIcon,
   SunriseIcon,
+  TornadoIcon,
   WandSparklesIcon,
   WavesIcon,
 } from "lucide-react"
@@ -140,6 +143,13 @@ const directionOptions: Option<Appearance["direction"]>[] = [
   { value: "radial", label: "Memancar dari atas", icon: SunriseIcon },
 ]
 
+const gradientMotionOptions: Option<Appearance["gradientMotion"]>[] = [
+  { value: "none", label: "Diam", icon: PauseIcon },
+  { value: "cloud", label: "Awan melayang", short: "Awan", icon: CloudIcon },
+  { value: "swirl", label: "Pusaran pelan", short: "Pusaran", icon: TornadoIcon },
+  { value: "silk", label: "Sutra mengalir", short: "Sutra", icon: WavesIcon },
+]
+
 const focusOptions: Option<Appearance["focus"]>[] = [
   { value: "center", label: "Tengah", icon: CrosshairIcon },
   { value: "top", label: "Atas", icon: ArrowUpIcon },
@@ -214,6 +224,7 @@ export function Choice<V extends string>(props: {
   disabled?: boolean
   layout?: PickerLayout
   columns?: number
+  description?: string
 }) {
   return <OptionPicker {...props} />
 }
@@ -312,7 +323,19 @@ export function AppearanceInput({ id, value, onChange, readOnly }: { id: string;
                   <ColorPicker id={`${id}-to`} value={look.color2} onChange={(next) => set("color2", next)} disabled={readOnly} allowAuto={false} />
                 </div>
               </Field>
-              <Choice id={`${id}-direction`} label="Arah" value={look.direction} options={directionOptions} onChange={(next) => set("direction", next)} disabled={readOnly} />
+              <Choice
+                id={`${id}-gradient-motion`}
+                label="Gerak"
+                value={look.gradientMotion}
+                options={gradientMotionOptions}
+                onChange={(next) => set("gradientMotion", next)}
+                disabled={readOnly}
+                description={look.gradientMotion === "none" ? undefined : "Berhenti sendiri bagi pengunjung yang meminta gerak dikurangi."}
+              />
+              {/* Arah hanya berlaku untuk gradien diam: yang bergerak menutup seluruh bagian. */}
+              {look.gradientMotion === "none" ? (
+                <Choice id={`${id}-direction`} label="Arah" value={look.direction} options={directionOptions} onChange={(next) => set("direction", next)} disabled={readOnly} />
+              ) : null}
             </>
           ) : null}
 

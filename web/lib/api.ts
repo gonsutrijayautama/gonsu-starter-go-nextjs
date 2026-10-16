@@ -32,11 +32,13 @@ type Options = {
   signal?: AbortSignal
 }
 
-export async function api<T>(
+/** Mengirim satu permintaan. Jawaban 401 mengarahkan ke halaman masuk. */
+async function send(
   path: string,
-  { method = "GET", body, idempotencyKey, signal }: Options = {}
-): Promise<T> {
-  const headers: Record<string, string> = { Accept: "application/json" }
+  { method = "GET", body, idempotencyKey, signal }: Options,
+  accept: string
+): Promise<Response> {
+  const headers: Record<string, string> = { Accept: accept }
   const file = body instanceof Blob ? body : undefined
   if (file) headers["Content-Type"] = file.type || "application/octet-stream"
   else if (body !== undefined) headers["Content-Type"] = "application/json"
@@ -64,21 +66,64 @@ export async function api<T>(
     signIn()
     throw new ApiError(401, "UNAUTHENTICATED", "Sesi sudah habis. Silakan masuk lagi.")
   }
+  return res
+}
+
+/** Envelope galat server menjadi ApiError. */
+function failure(res: Response, data: { error?: Record<string, unknown> } | null): ApiError {
+  const e = data?.error as
+    | { code?: string; message?: string; details?: FieldError[]; request_id?: string; required_entitlement?: string }
+    | undefined
+  return new ApiError(
+    res.status,
+    e?.code ?? "INTERNAL_ERROR",
+    e?.message ?? "Ada yang salah di server. Coba lagi sebentar lagi.",
+    e?.details ?? [],
+    e?.request_id,
+    e?.required_entitlement
+  )
+}
+
+export async function api<T>(path: string, options: Options = {}): Promise<T> {
+  const res = await send(path, options, "application/json")
   if (res.status === 204) return undefined as T
 
   const data = await res.json().catch(() => null)
-  if (!res.ok) {
-    const e = data?.error
-    throw new ApiError(
-      res.status,
-      e?.code ?? "INTERNAL_ERROR",
-      e?.message ?? "Ada yang salah di server. Coba lagi sebentar lagi.",
-      e?.details ?? [],
-      e?.request_id,
-      e?.required_entitlement
-    )
-  }
+  if (!res.ok) throw failure(res, data)
   return data as T
+}
+
+/**
+ * Jawaban yang mengalir: satu objek JSON per baris (NDJSON), diterima selagi
+ * server masih menulisnya. Galat sebelum aliran dimulai dilempar sebagai
+ * ApiError, sama seperti `api()`; aliran yang dihentikan lewat `signal`
+ * melempar galat abort.
+ */
+export async function* apiStream<T>(
+  path: string,
+  { body, signal }: Pick<Options, "body" | "signal">
+): AsyncGenerator<T> {
+  const res = await send(path, { method: "POST", body, signal }, "application/x-ndjson")
+  if (!res.ok || !res.body) throw failure(res, await res.json().catch(() => null))
+
+  const reader = res.body.pipeThrough(new TextDecoderStream()).getReader()
+  let pending = ""
+  try {
+    for (;;) {
+      const { done, value } = await reader.read()
+      if (done) break
+      pending += value
+      for (let end = pending.indexOf("\n"); end >= 0; end = pending.indexOf("\n")) {
+        const line = pending.slice(0, end).trim()
+        pending = pending.slice(end + 1)
+        if (line) yield JSON.parse(line) as T
+      }
+    }
+    if (pending.trim()) yield JSON.parse(pending) as T
+  } finally {
+    // Pembaca yang berhenti di tengah (dihentikan, atau galat) menutup koneksinya.
+    void reader.cancel().catch(() => undefined)
+  }
 }
 
 /** Mengubah galat apa pun menjadi ApiError supaya layar cukup mengenal satu bentuk. */

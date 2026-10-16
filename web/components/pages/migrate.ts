@@ -1,4 +1,4 @@
-import type { Data } from "@puckeditor/core"
+import type { Data, Fields } from "@puckeditor/core"
 
 import { pageConfig } from "./config"
 import { callToActionFrom } from "./library/contact"
@@ -36,13 +36,37 @@ function walk(value: unknown): unknown {
   return value
 }
 
+/**
+ * Isian satu baris yang bisa diketik langsung di kanvas tidak boleh menyimpan
+ * baris baru: halaman terbit menampilkannya sebagai spasi, tetapi Puck
+ * membuang baris baru saat teksnya diketik, sehingga dua kata menempel.
+ * Data lama (judul yang dulu berupa isian bertingkat) dirapikan menjadi spasi
+ * — tampilan bagi pengunjung tidak berubah.
+ */
+function singleLine(props: Record<string, unknown>, fields: Fields | undefined): Record<string, unknown> {
+  if (!fields) return props
+  const out = { ...props }
+  for (const [key, field] of Object.entries(fields)) {
+    const value = out[key]
+    if (field.type === "text" && field.contentEditable && typeof value === "string" && value.includes("\n")) {
+      out[key] = value.replace(/\s*\n\s*/g, " ")
+    } else if (field.type === "array" && Array.isArray(value)) {
+      out[key] = value.map((entry) =>
+        typeof entry === "object" && entry !== null ? singleLine(entry as Record<string, unknown>, field.arrayFields as Fields) : entry
+      )
+    }
+  }
+  return out
+}
+
 function migrateItem(item: Item): Item {
   const rule = merged[item.type]
   const type = rule?.type ?? item.type
   const props = rule ? rule.props(item.type, item.props) : item.props
-  const defaults = (pageConfig.components as Record<string, { defaultProps?: Record<string, unknown> }>)[type]?.defaultProps ?? {}
+  const component = (pageConfig.components as Record<string, { defaultProps?: Record<string, unknown>; fields?: Fields }>)[type]
+  const defaults = component?.defaultProps ?? {}
   const walked = Object.fromEntries(Object.entries(props).map(([key, inner]) => [key, walk(inner)]))
-  return { type, props: { ...defaults, ...walked } }
+  return { type, props: singleLine({ ...defaults, ...walked }, component?.fields) }
 }
 
 export function migrateContent(data: Data): Data {

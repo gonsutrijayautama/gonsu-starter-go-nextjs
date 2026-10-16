@@ -8,10 +8,10 @@ import { cn } from "cn"
 import { channelLinks, emailHref, phoneHref, type Site } from "@/lib/site"
 import { Button, buttonVariants } from "@/components/ui/button"
 
-import { ColorScope, GradientScope } from "../appearance"
-import { BlockImage, Section, SectionTitle, type BlockMetadata, type BlockProps } from "../blocks"
+import { anchorOf, ColorScope, GradientScope, type Appearance } from "../appearance"
+import { BlockImage, editable, hasText, orHint, pageButton, Section, SectionTitle, type BlockMetadata, type BlockProps, type InlineText } from "../blocks"
 import { Backdrop, HighlightText, type BackdropKind, type ButtonEffect, type TextEffect } from "../effects"
-import { backgroundField, buttonEffectField, effectField, imageField, introFields, layoutField, linkField, showFields, sk, when } from "../fields"
+import { backgroundField, buttonEffectField, effectField, imageField, inline, introFields, layoutField, linkField, showFields, sk, when } from "../fields"
 import { colorField } from "../field-kit"
 import { Buttons, SectionIntro } from "./kit"
 
@@ -27,13 +27,14 @@ const siteOf = (puck: PuckContext) => (puck.metadata as BlockMetadata).site
 export type CallToActionProps = {
   variant: "banner" | "split" | "image" | "gradient"
   tone: "card" | "primary" | "muted" | "inverse"
-  title: string
+  // InlineText: isian yang bisa diketik langsung di kanvas (`inline` di callToActionConfig).
+  title: InlineText
   highlight: string
   effect: TextEffect
-  subtitle: string
-  primary_label: string
+  subtitle: InlineText
+  primary_label: InlineText
   primary_link: string
-  secondary_label: string
+  secondary_label: InlineText
   secondary_link: string
   button_effect: ButtonEffect
   background: BackdropKind
@@ -41,6 +42,29 @@ export type CallToActionProps = {
   color: string
   color2: string
 }
+
+const hexColor = /^#[0-9a-f]{6}$/i
+
+/**
+ * Warna gradien pilihan sendiri. Satu warna saja: polos dengan warna itu
+ * sampai warna kedua dipilih. Tanpa warna: null, berarti gradien dari warna
+ * utama tema (`themeGradient`).
+ */
+function chosenGradient(color: string, color2: string): { from: string; to: string } | null {
+  const from = hexColor.test(color) ? color : hexColor.test(color2) ? color2 : ""
+  if (!from) return null
+  return { from, to: hexColor.test(color2) ? color2 : from }
+}
+
+/**
+ * Gradien bawaan Ajakan: warna utama tema ke warna dengan terang dan
+ * kepekatan yang sama, hanya ronanya digeser. Teks warna-depan-utama tetap
+ * terbaca di kedua ujungnya, di tema terang maupun gelap. Di dalam ColorScope
+ * `--primary` sudah dipetakan ulang ke warna teks, jadi dasarnya
+ * `--surface-bg`. Peramban tanpa sintaks warna relatif mendapat warna utama
+ * polos dari ColorScope.
+ */
+const themeGradient = "linear-gradient(135deg, var(--surface-bg), oklch(from var(--surface-bg) l c calc(h + 60)))"
 
 function Tone({ tone, className, children }: { tone: CallToActionProps["tone"]; className: string; children: ReactNode }) {
   if (tone === "primary" || tone === "inverse") {
@@ -57,16 +81,18 @@ export function CallToActionBlock(props: BlockProps<CallToActionProps>) {
   const { variant, tone, title, highlight, effect, subtitle, background, image, puck } = props
   const heading = (center: boolean) => (
     <div className={cn("flex flex-col gap-4", center ? "items-center text-center" : "items-start")}>
-      <h2 className="page-title max-w-3xl text-3xl font-semibold tracking-tight text-balance sm:text-5xl">
-        {title}
-        {highlight ? (
-          <>
-            {" "}
-            <HighlightText text={highlight} effect={effect} />
-          </>
-        ) : null}
-      </h2>
-      {subtitle ? <p className="page-lead max-w-xl text-lg text-pretty text-muted-foreground">{subtitle}</p> : null}
+      {hasText(title) || highlight.trim() || puck.isEditing ? (
+        <h2 className="page-title max-w-3xl text-3xl font-semibold tracking-tight text-balance sm:text-5xl">
+          {orHint(title, "Judul ajakan", puck)}
+          {highlight ? (
+            <>
+              {" "}
+              <HighlightText text={highlight} effect={effect} />
+            </>
+          ) : null}
+        </h2>
+      ) : null}
+      {hasText(subtitle) ? <p className="page-lead max-w-xl text-lg text-pretty text-muted-foreground">{subtitle}</p> : null}
     </div>
   )
   const buttons = (center: boolean) => (
@@ -102,22 +128,37 @@ export function CallToActionBlock(props: BlockProps<CallToActionProps>) {
             {heading(false)}
             {buttons(false)}
           </div>
-          {image || puck.isEditing ? <BlockImage src={image} alt="" className="min-h-64 w-full rounded-none border-0" puck={puck} /> : null}
+          {image || puck.isEditing ? <BlockImage src={image} alt="" className="min-h-64 w-full rounded-none border-0" puck={puck} field="image" /> : null}
         </div>
       </Section>
     )
   }
   if (variant === "gradient") {
+    const box = "relative isolate overflow-hidden rounded-3xl px-6 py-16 sm:px-12"
+    const content = (
+      <>
+        <div aria-hidden="true" className="absolute -top-24 -right-24 -z-10 size-80 rounded-full bg-white/15 blur-2xl" />
+        <div aria-hidden="true" className="absolute -bottom-28 -left-20 -z-10 size-72 rounded-full bg-black/10 blur-2xl" />
+        <div className="flex flex-col items-center gap-8">
+          {heading(true)}
+          {buttons(true)}
+        </div>
+      </>
+    )
+    // Halaman lama menyimpan warnanya sendiri dan tetap memakainya.
+    const chosen = chosenGradient(props.color, props.color2)
     return (
       <Section>
-        <GradientScope from={props.color} to={props.color2} className="relative isolate overflow-hidden rounded-3xl px-6 py-16 sm:px-12">
-          <div aria-hidden="true" className="absolute -top-24 -right-24 -z-10 size-80 rounded-full bg-white/15 blur-2xl" />
-          <div aria-hidden="true" className="absolute -bottom-28 -left-20 -z-10 size-72 rounded-full bg-black/10 blur-2xl" />
-          <div className="flex flex-col items-center gap-8">
-            {heading(true)}
-            {buttons(true)}
-          </div>
-        </GradientScope>
+        {chosen ? (
+          <GradientScope from={chosen.from} to={chosen.to} className={box}>
+            {content}
+          </GradientScope>
+        ) : (
+          <ColorScope background="primary" className={box}>
+            <div aria-hidden="true" className="absolute inset-0 -z-20" style={{ backgroundImage: themeGradient }} />
+            {content}
+          </ColorScope>
+        )}
       </Section>
     )
   }
@@ -151,19 +192,23 @@ export const callToActionConfig: ComponentConfig<CallToActionProps> = {
         { label: "Gelap", value: "inverse" },
       ],
     },
-    title: { type: "textarea", label: "Judul" },
-    highlight: { type: "text", label: "Kata yang disorot" },
+    // Satu baris: halaman publik menyatukan baris judul, jadi Enter di kanvas
+    // ditolak supaya editor dan pengunjung melihat judul yang sama.
+    title: inline({ type: "text", label: "Judul" } as const),
+    // Dirender langsung sesudah judul di baris yang sama: lanjutan kalimatnya, bukan kata dari judul.
+    // Tidak diketik di kanvas: kata-katanya dipecah untuk efek berganti dan diketik.
+    highlight: { type: "text", label: "Lanjutan judul (diberi efek)", placeholder: "Disambung langsung sesudah judul" },
     effect: effectField,
-    subtitle: { type: "textarea", label: "Kalimat" },
-    primary_label: { type: "text", label: "Tombol utama" },
+    subtitle: inline({ type: "textarea", label: "Kalimat" } as const),
+    primary_label: inline({ type: "text", label: "Tombol utama" } as const),
     primary_link: linkField,
-    secondary_label: { type: "text", label: "Tombol kedua", placeholder: "Kosongkan bila tanpa tombol kedua" },
+    secondary_label: inline({ type: "text", label: "Tombol kedua", placeholder: "Kosongkan bila tanpa tombol kedua" } as const),
     secondary_link: { ...linkField, label: "Tautan tombol kedua" },
     button_effect: buttonEffectField,
     background: backgroundField,
     image: imageField("Gambar"),
-    color: colorField("Warna awal gradien"),
-    color2: colorField("Warna akhir gradien"),
+    color: colorField("Warna awal gradien", "Otomatis: gradien dari warna utama tema."),
+    color2: colorField("Warna akhir gradien", "Otomatis: gradien dari warna utama tema."),
   },
   resolveFields: showFields<CallToActionProps>({
     tone: when("variant", "banner", "split"),
@@ -187,8 +232,9 @@ export const callToActionConfig: ComponentConfig<CallToActionProps> = {
     button_effect: "none",
     background: "glow",
     image: null,
-    color: "#6366f1",
-    color2: "#ec4899",
+    // Kosong = gradien dari warna tema, yang terbaca di tema terang dan gelap.
+    color: "",
+    color2: "",
   },
   render: (props) => <CallToActionBlock {...props} />,
 }
@@ -234,14 +280,29 @@ function mapsSearch(site: Site): string {
  * Peta Google, baru dimuat saat pengunjung memintanya: tanpa itu Google tidak
  * menerima kunjungan apa pun dari halaman ini. Di editor hanya tempatnya.
  */
-function MapEmbed({ site, puck, className }: { site: Site; puck: PuckContext; className?: string }) {
+function MapEmbed({
+  site,
+  puck,
+  className,
+  placeholderClassName,
+}: {
+  site: Site
+  puck: PuckContext
+  className?: string
+  /** Kelas tambahan untuk tempat peta (bukan peta yang sudah dimuat), mis. menjauhkan isinya dari kartu yang menumpuk. */
+  placeholderClassName?: string
+}) {
   const [shown, setShown] = useState(false)
   const query = [site.contact.address, site.contact.city].filter(Boolean).join(", ")
   if (!query) {
     if (!puck.isEditing) return null
     return (
       <div
-        className={cn("flex items-center justify-center rounded-2xl border border-dashed bg-muted p-6 text-center text-sm text-muted-foreground", className)}
+        className={cn(
+          "flex items-center justify-center rounded-2xl border border-dashed bg-muted p-6 text-center text-sm text-muted-foreground",
+          className,
+          placeholderClassName
+        )}
       >
         Alamat belum diisi. Isi di Pengaturan → Profil bisnis.
       </div>
@@ -260,14 +321,18 @@ function MapEmbed({ site, puck, className }: { site: Site; puck: PuckContext; cl
   }
   return (
     <div
-      className={cn("relative isolate flex flex-col items-center justify-center gap-3 overflow-hidden rounded-2xl border bg-muted p-6 text-center", className)}
+      className={cn(
+        "relative isolate flex flex-col items-center justify-center gap-3 overflow-hidden rounded-2xl border bg-muted p-6 text-center",
+        className,
+        placeholderClassName
+      )}
     >
       <Backdrop kind="grid" />
       <span className="flex size-12 items-center justify-center rounded-full bg-background shadow-sm">
         <MapIcon aria-hidden="true" className="size-5" />
       </span>
       <p className="max-w-xs text-sm text-pretty text-muted-foreground">{query}</p>
-      <Button type="button" variant="outline" onClick={() => setShown(true)} disabled={puck.isEditing}>
+      <Button type="button" variant="outline" className={pageButton} onClick={() => setShown(true)} disabled={puck.isEditing}>
         Tampilkan peta
       </Button>
     </div>
@@ -310,7 +375,7 @@ function ChannelButtons({ site }: { site: Site }) {
   return (
     <div className="flex flex-wrap gap-2">
       {channels.map((channel) => (
-        <a key={channel.label} href={channel.href} target="_blank" rel="noreferrer" className={cn(buttonVariants({ variant: "outline" }))}>
+        <a key={channel.label} href={channel.href} target="_blank" rel="noreferrer" className={cn(buttonVariants({ variant: "outline" }), pageButton)}>
           {channel.label}
         </a>
       ))}
@@ -318,8 +383,7 @@ function ChannelButtons({ site }: { site: Site }) {
   )
 }
 
-function ContactRows({ site }: { site: Site }) {
-  const rows = rowsOf(site)
+function ContactRows({ rows }: { rows: Row[] }) {
   if (rows.length === 0) return null
   return (
     <ul className="flex flex-col divide-y rounded-xl border bg-card">
@@ -349,31 +413,59 @@ const missingProfile = (
 
 export type ContactProps = {
   variant: "info" | "cards" | "map" | "hours"
-  title: string
-  note: string
+  title: InlineText
+  note: InlineText
   hours: Hours
 }
 
-export function ContactBlock({ variant, title, note, hours, puck }: BlockProps<ContactProps>) {
+/**
+ * Lebar kartu kanal menurut jumlahnya. Kisi menempelkan baris yang tidak
+ * penuh ke kiri (5 kartu jadi 3 + 2 berat sebelah); dengan flex-wrap baris
+ * terakhir di tengah. Kelipatan 4 memakai 4 kolom supaya barisnya penuh.
+ * Kelas Tailwind harus tertulis utuh. Jarak antarkartu `gap-4` (1rem).
+ */
+function cardWidth(count: number): string {
+  if (count % 4 === 0) return "w-full sm:w-[calc((100%_-_1rem)/2)] lg:w-[calc((100%_-_3rem)/4)]"
+  return "w-full sm:w-[calc((100%_-_1rem)/2)] lg:w-[calc((100%_-_2rem)/3)]"
+}
+
+export function ContactBlock({
+  variant,
+  title,
+  note,
+  hours,
+  appearance,
+  puck,
+}: BlockProps<ContactProps> & {
+  /** Tampilan bagian (config.tsx `withLook`): dibaca hanya untuk id jangkarnya. */
+  appearance?: Partial<Appearance>
+}) {
   const site = siteOf(puck)
-  const empty = rowsOf(site).length === 0 && channelLinks(site.channels).length === 0
+  const rows = rowsOf(site)
+  const channels = channelLinks(site.channels)
+  // "kontak" adalah jangkar bawaan tombol "#kontak". Bila Tampilan sudah
+  // memberi id, id itu dipasang di pembungkus bagian; id kedua di sini akan
+  // membuat jangkar ganda.
+  const id = anchorOf(appearance?.anchor ?? "") ? undefined : "kontak"
 
   if (variant === "cards") {
     const whatsapp = site.channels.whatsapp
     const cards: Row[] = [
       ...(whatsapp ? [{ icon: MessageCircleIcon, label: "WhatsApp", value: "Balasan paling cepat", href: whatsapp, action: "Chat sekarang" }] : []),
-      ...rowsOf(site).filter((row) => row.label !== "Jam buka"),
-      ...channelLinks(site.channels)
+      ...rows.filter((row) => row.label !== "Jam buka"),
+      ...channels
         .filter((channel) => channel.label !== "WhatsApp")
         .map((channel) => ({ icon: AtSignIcon, label: channel.label, value: "Ikuti kabar terbaru", href: channel.href, action: "Kunjungi" })),
     ]
+    // Tanpa satu kanal pun, bagi pengunjung bagian ini hanya judul dan kalimat.
+    if (cards.length === 0 && !puck.isEditing) return null
     return (
-      <Section id="kontak" className="flex flex-col gap-10">
+      <Section id={id} className="flex flex-col gap-10">
         <SectionIntro title={title} subtitle={note} />
         {cards.length > 0 ? (
-          <ul className={cn("grid gap-4 sm:grid-cols-2", cards.length >= 3 && "lg:grid-cols-3", cards.length === 4 && "lg:grid-cols-4")}>
+          <ul className="flex flex-wrap justify-center gap-4">
             {cards.map((card) => (
-              <li key={card.label} className="flex flex-col gap-3 rounded-2xl border bg-card p-6 shadow-xs">
+              <li key={card.label} className={cn("flex flex-col gap-3 rounded-2xl border bg-card p-6 shadow-xs", cardWidth(cards.length))}>
                 <span className="flex size-10 items-center justify-center rounded-full bg-muted">
                   <card.icon aria-hidden="true" className="size-5" />
                 </span>
@@ -384,7 +476,7 @@ export function ContactBlock({ variant, title, note, hours, puck }: BlockProps<C
                     href={card.href}
                     target={card.href.startsWith("http") ? "_blank" : undefined}
                     rel="noreferrer"
-                    className={cn(buttonVariants({ variant: "outline" }), "mt-auto self-start")}
+                    className={cn(buttonVariants({ variant: "outline" }), pageButton, "mt-auto self-start")}
                   >
                     {card.action}
                   </a>
@@ -392,18 +484,28 @@ export function ContactBlock({ variant, title, note, hours, puck }: BlockProps<C
               </li>
             ))}
           </ul>
-        ) : puck.isEditing ? (
+        ) : (
           missingProfile
-        ) : null}
+        )}
       </Section>
     )
   }
 
+  const list = variant === "hours" ? hoursOf(hours, site) : []
+  // Bagi pengunjung: tanpa satu pun data kontak, bagian ini hanya judul dan
+  // kalimat — tidak dirender. Editor tetap menunjukkan cara mengisinya.
+  if (!puck.isEditing && rows.length === 0 && channels.length === 0 && list.length === 0) return null
+
+  const address = [site.contact.address, site.contact.city].filter(Boolean).join(", ")
+  // Susunan jam buka menampilkan jam di kanan, jadi baris jam di kiri dibuang (dulu tampil dua kali).
+  const leftRows = variant === "info" ? [] : variant === "hours" ? rows.filter((row) => row.label !== "Jam buka") : rows
+  const sideFilled = variant === "map" ? Boolean(address) : variant === "hours" ? list.length > 0 : rows.length > 0
+  const heading = editable(title, "Judul bagian")
   const side =
     variant === "map" ? (
       <MapEmbed site={site} puck={puck} className="min-h-80" />
     ) : variant === "hours" ? (
-      hoursOf(hours, site).length === 0 ? (
+      list.length === 0 ? (
         puck.isEditing ? (
           <p className="rounded-xl border border-dashed p-4 text-sm text-muted-foreground">
             Isi jam buka di isian blok ini, atau di Pengaturan → Profil bisnis.
@@ -415,22 +517,25 @@ export function ContactBlock({ variant, title, note, hours, puck }: BlockProps<C
             <ClockIcon aria-hidden="true" className="size-4" />
             Jam buka
           </h3>
-          <HoursList hours={hoursOf(hours, site)} />
+          <HoursList hours={list} />
         </div>
       )
-    ) : (
-      <ContactRows site={site} />
-    )
+    ) : rows.length > 0 ? (
+      <ContactRows rows={rows} />
+    ) : puck.isEditing ? (
+      missingProfile
+    ) : null
   return (
-    <Section id="kontak">
-      <div className="grid items-start gap-10 md:grid-cols-2">
+    <Section id={id}>
+      {/* Sisi kanan kosong (mis. hanya kanal yang terisi): satu kolom, bukan separuh kisi yang kosong. */}
+      <div className={cn("grid items-start gap-10", (sideFilled || puck.isEditing) && "md:grid-cols-2")}>
         <div className="flex flex-col gap-4">
-          <SectionTitle>{title}</SectionTitle>
-          {note ? <p className="page-lead text-lg text-pretty text-muted-foreground">{note}</p> : null}
-          {variant !== "info" ? <ContactRows site={site} /> : null}
+          {heading ? <SectionTitle>{heading}</SectionTitle> : null}
+          {hasText(note) ? <p className="page-lead text-lg text-pretty text-muted-foreground">{note}</p> : null}
+          <ContactRows rows={leftRows} />
           <ChannelButtons site={site} />
         </div>
-        {empty && puck.isEditing && variant === "info" ? missingProfile : side}
+        {side}
       </div>
     </Section>
   )
@@ -441,7 +546,8 @@ const hoursField = {
   label: "Jam buka (kosong: dari Profil bisnis)",
   max: 10,
   getItemSummary: (row: Hours[number]) => [row.day, row.time].filter(Boolean).join(" · ") || "Hari",
-  defaultItemProps: { day: "Senin–Jumat", time: "08.00–17.00" },
+  // Baris baru kosong: jam karangan yang lupa diubah tampil sebagai jam buka sungguhan.
+  defaultItemProps: { day: "", time: "" },
   arrayFields: { day: { type: "text", label: "Hari" }, time: { type: "text", label: "Jam", placeholder: "08.00–17.00 atau Tutup" } },
 } as const
 
@@ -476,15 +582,16 @@ export const contactConfig: ComponentConfig<ContactProps> = {
         sketch: [...text(4, 6, 20), c(4, 16, 22, 14), c(32, 6, 24, 24), s(35, 10, 8), s(46, 10, 7), s(35, 16, 8), s(46, 16, 7), s(35, 22, 8), s(46, 22, 7)],
       },
     ]),
-    title: { type: "text", label: "Judul" },
-    note: { type: "textarea", label: "Kalimat pembuka" },
+    title: inline({ type: "text", label: "Judul" } as const),
+    note: inline({ type: "textarea", label: "Kalimat pembuka" } as const),
     hours: hoursField,
   },
   resolveFields: showFields<ContactProps>({ hours: when("variant", "hours") }),
   defaultProps: {
     variant: "info",
     title: "Hubungi kami",
-    note: "Alamat, telepon, dan kanal diambil dari Profil bisnis dan Website.",
+    // Kosong: kalimat petunjuk untuk pengelola akan ikut terbit ke pengunjung.
+    note: "",
     hours: [],
   },
   render: (props) => <ContactBlock {...props} />,
@@ -494,11 +601,12 @@ export const contactConfig: ComponentConfig<ContactProps> = {
 
 export type LocationProps = {
   variant: "split" | "card" | "compact"
-  eyebrow: string
-  title: string
-  subtitle: string
+  // InlineText: introFields dan catatan bisa diketik langsung di kanvas.
+  eyebrow: InlineText
+  title: InlineText
+  subtitle: InlineText
   hours: Hours
-  note: string
+  note: InlineText
 }
 
 export function LocationBlock({ variant, eyebrow, title, subtitle, hours, note, puck }: BlockProps<LocationProps>) {
@@ -528,15 +636,15 @@ export function LocationBlock({ variant, eyebrow, title, subtitle, hours, note, 
           <HoursList hours={list} />
         </div>
       ) : null}
-      {note ? <p className="text-sm text-pretty text-muted-foreground">{note}</p> : null}
+      {hasText(note) ? <p className="text-sm text-pretty text-muted-foreground">{note}</p> : null}
       {address ? (
         <div className="flex flex-wrap gap-2">
-          <a href={puck.isEditing ? undefined : directions} target="_blank" rel="noreferrer" className={cn(buttonVariants())}>
+          <a href={puck.isEditing ? undefined : directions} target="_blank" rel="noreferrer" className={cn(buttonVariants(), pageButton)}>
             <NavigationIcon aria-hidden="true" />
             Petunjuk arah
           </a>
           {phoneHref(site.contact.phone) ? (
-            <a href={puck.isEditing ? undefined : phoneHref(site.contact.phone)} className={cn(buttonVariants({ variant: "outline" }))}>
+            <a href={puck.isEditing ? undefined : phoneHref(site.contact.phone)} className={cn(buttonVariants({ variant: "outline" }), pageButton)}>
               <PhoneIcon aria-hidden="true" />
               Telepon
             </a>
@@ -546,19 +654,34 @@ export function LocationBlock({ variant, eyebrow, title, subtitle, hours, note, 
     </div>
   )
 
-  // Tanpa alamat tidak ada peta: kartu di atas peta menjadi kotak biasa.
+  // Bagi pengunjung: tanpa alamat dan jam buka tidak ada yang bisa ditunjukkan.
+  if (!puck.isEditing && !address && list.length === 0) return null
+
+  // Tanpa alamat tidak ada peta: bagi pengunjung, kartu di atas peta dan
+  // peta di samping rincian menjadi kotak biasa, bukan kolom yang kosong.
   if (variant === "card" && (address || puck.isEditing)) {
     return (
       <Section className="flex flex-col gap-10">
         <SectionIntro eyebrow={eyebrow} title={title} subtitle={subtitle} />
-        <div className="relative">
-          <MapEmbed site={site} puck={puck} className="h-[28rem]" />
-          <div className="mx-4 -mt-24 rounded-2xl border bg-card p-6 shadow-xl md:absolute md:top-6 md:left-6 md:mx-0 md:mt-0 md:w-96">{details}</div>
+        {/* Mulai md peta dan kartu berbagi satu sel kisi: tinggi bagian
+            mengikuti yang lebih tinggi, jadi kartu yang panjang tidak keluar
+            dari peta. Isi tempat peta digeser ke kanan kartu supaya tidak
+            tertutup (lebar kartu 24rem + jarak 1,5rem + sela 1rem). */}
+        <div className="flex flex-col md:grid">
+          <MapEmbed
+            site={site}
+            puck={puck}
+            className="h-[28rem] md:col-start-1 md:row-start-1 md:h-full md:min-h-[28rem]"
+            placeholderClassName="md:pl-[26.5rem]"
+          />
+          <div className="relative mx-4 -mt-24 rounded-2xl border bg-card p-6 shadow-xl md:col-start-1 md:row-start-1 md:m-6 md:w-96 md:self-start">
+            {details}
+          </div>
         </div>
       </Section>
     )
   }
-  if (variant === "compact" || (variant === "card" && !address)) {
+  if (variant === "compact" || (!address && !puck.isEditing)) {
     return (
       <Section className="flex max-w-3xl flex-col gap-8">
         <SectionIntro eyebrow={eyebrow} title={title} subtitle={subtitle} />
@@ -591,18 +714,16 @@ export const locationConfig: ComponentConfig<LocationProps> = {
     ]),
     ...introFields,
     hours: hoursField,
-    note: { type: "text", label: "Catatan", placeholder: "Parkir tersedia di depan toko." },
+    note: inline({ type: "text", label: "Catatan", placeholder: "Petunjuk tambahan untuk pengunjung" } as const),
   },
   defaultProps: {
     variant: "split",
     eyebrow: "",
     title: "Kunjungi kami",
     subtitle: "",
-    hours: [
-      { day: "Senin–Jumat", time: "08.00–17.00" },
-      { day: "Sabtu", time: "08.00–14.00" },
-      { day: "Minggu", time: "Tutup" },
-    ],
+    // Kosong: jam buka dibaca dari Profil bisnis. Jam contoh di sini akan
+    // menang atas jam sungguhan (lihat `hoursOf`).
+    hours: [],
     note: "",
   },
   render: (props) => <LocationBlock {...props} />,

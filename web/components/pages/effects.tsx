@@ -119,6 +119,29 @@ function FlickerCanvas() {
   return <canvas ref={ref} className="size-full" />
 }
 
+// --- Gradien bergerak ----------------------------------------------------------------
+
+export type GradientMotion = "none" | "cloud" | "swirl" | "silk"
+
+/** Banyaknya lapisan tiap gerak; bentuk dan jalurnya di effects.css. */
+const gradientLayers: Record<Exclude<GradientMotion, "none">, number> = { cloud: 4, swirl: 2, silk: 2 }
+
+/**
+ * Gradien dua warna yang bergerak, di belakang isi dan di bawah pola. Warnanya
+ * `--surface-from` dan `--surface-to` milik induknya (`Surface`), jadi ikut
+ * versi mode gelapnya. Induknya wajib `relative isolate`.
+ */
+export function MovingGradient({ kind }: { kind: GradientMotion | undefined }) {
+  if (!kind || kind === "none") return null
+  return (
+    <div aria-hidden="true" data-gradient-motion={kind} className={cn("page-flow", `page-flow-${kind}`)}>
+      {Array.from({ length: gradientLayers[kind] }, (_, index) => (
+        <span key={index} />
+      ))}
+    </div>
+  )
+}
+
 /**
  * Isi yang bergerak terus ke samping (atau ke atas). Isinya digandakan supaya
  * putarannya mulus; salinannya `inert`, jadi tidak dibaca dua kali.

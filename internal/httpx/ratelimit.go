@@ -45,6 +45,15 @@ var (
 	// endpoint mutasi lain tidak terjaga sama sekali, sementara batas yang
 	// cukup longgar tidak pernah menyentuh manusia.
 	writeRule = ratelimit.Rule{Rate: 5, Burst: 60}
+
+	// Jawaban asisten AI. Berbeda dari kelompok lain, yang dijaga di sini
+	// biaya: setiap jawaban adalah panggilan berbayar ke penyedia model, dan
+	// satu jawaban berjalan 5 detik sampai 2 menit. Orang yang mengobrol
+	// mengirim satu-dua permintaan per menit; client yang macet mengulang
+	// menghabiskan kredit dalam hitungan menit.
+	//
+	// Enam sekaligus, lalu satu per enam detik.
+	aiRule = ratelimit.Rule{Rate: 1.0 / 6, Burst: 6}
 )
 
 // Limits adalah seluruh pembatas satu proses. Dibuat sekali saat start;
@@ -59,6 +68,9 @@ type Limits struct {
 	Login  *ratelimit.Limiter
 	Create *ratelimit.Limiter
 	Write  *ratelimit.Limiter
+	// AI tidak dipilih pick: dipasang langsung pada route-nya dengan Limit,
+	// di samping pembatas kelompoknya.
+	AI *ratelimit.Limiter
 }
 
 func NewLimits() *Limits {
@@ -66,6 +78,7 @@ func NewLimits() *Limits {
 		Login:  ratelimit.New(loginRule),
 		Create: ratelimit.New(createRule),
 		Write:  ratelimit.New(writeRule),
+		AI:     ratelimit.New(aiRule),
 	}
 }
 

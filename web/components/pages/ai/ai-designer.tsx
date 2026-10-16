@@ -3,24 +3,19 @@
 import { useMemo, useState } from "react"
 import type { Data } from "@puckeditor/core"
 import {
-  ArrowUpRightIcon,
   BriefcaseIcon,
-  CheckIcon,
-  ClipboardCopyIcon,
-  DownloadIcon,
   HouseIcon,
   MapPinIcon,
   SparklesIcon,
   TicketPercentIcon,
   UsersIcon,
-  UtensilsIcon,
+  TagsIcon,
   WrenchIcon,
 } from "lucide-react"
-import { cn } from "cn"
 
 import type { Site } from "@/lib/site"
 import { Alert, AlertDescription, AlertTitle } from "@/components/reui/alert"
-import { Button, buttonVariants } from "@/components/ui/button"
+import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
@@ -32,6 +27,7 @@ import { OptionPicker, type Option } from "../option-picker"
 import { blockCatalog, componentCatalog } from "./catalog"
 import { exportForAi, extractJson, importBlocks, type ImportResult } from "./import"
 import { buildPrompt, styleGuides, type Brief, type DesignStyle } from "./prompt"
+import { PasteStep, PromptStep, StepBar } from "./wizard-steps"
 
 // "Desain dengan AI" tanpa kunci API: wizard menyusun prompt (pertanyaan,
 // katalog blok, aturan), pengguna menempelkannya di ChatGPT atau Claude
@@ -50,7 +46,7 @@ const steps: { value: Step; label: string }[] = [
 const pageTypes: Option<string>[] = [
   { value: "Beranda (halaman utama)", label: "Beranda (halaman utama)", short: "Beranda", icon: HouseIcon },
   { value: "Layanan", label: "Layanan", icon: WrenchIcon },
-  { value: "Menu dan daftar harga", label: "Menu dan daftar harga", short: "Menu & harga", icon: UtensilsIcon },
+  { value: "Daftar harga", label: "Daftar harga", short: "Harga", icon: TagsIcon },
   { value: "Tentang kami", label: "Tentang kami", icon: UsersIcon },
   { value: "Promo", label: "Promo", icon: TicketPercentIcon },
   { value: "Kontak dan lokasi", label: "Kontak dan lokasi", short: "Kontak", icon: MapPinIcon },
@@ -70,35 +66,6 @@ const styles: Option<DesignStyle>[] = (Object.entries(styleGuides) as [DesignSty
   label: `${guide.label}: ${guide.hint}`,
   short: guide.label,
 }))
-
-const chats = [
-  { label: "Buka ChatGPT", href: "https://chatgpt.com/" },
-  { label: "Buka Claude", href: "https://claude.ai/new" },
-]
-
-function StepBar({ current }: { current: Step }) {
-  const index = steps.findIndex((step) => step.value === current)
-  return (
-    <ol className="flex items-center gap-2 text-xs">
-      {steps.map((step, position) => (
-        <li key={step.value} className="flex items-center gap-2">
-          <span
-            className={cn(
-              "flex size-5 items-center justify-center rounded-full border tabular-nums",
-              position < index && "border-primary bg-primary text-primary-foreground",
-              position === index && "border-primary text-primary",
-              position > index && "text-muted-foreground"
-            )}
-          >
-            {position < index ? <CheckIcon className="size-3" /> : position + 1}
-          </span>
-          <span className={cn("max-sm:hidden", position === index ? "font-medium" : "text-muted-foreground")}>{step.label}</span>
-          {position < steps.length - 1 ? <span aria-hidden="true" className="h-px w-4 bg-border" /> : null}
-        </li>
-      ))}
-    </ol>
-  )
-}
 
 export function AiDesigner({
   open,
@@ -132,7 +99,6 @@ export function AiDesigner({
   }))
   const [prompt, setPrompt] = useState("")
   const [images, setImages] = useState<Map<string, string>>(new Map())
-  const [copied, setCopied] = useState(false)
   const [answer, setAnswer] = useState("")
   const [problem, setProblem] = useState("")
   const [result, setResult] = useState<ImportResult | null>(null)
@@ -146,18 +112,8 @@ export function AiDesigner({
   function makePrompt() {
     setImages(exported.images)
     setPrompt(buildPrompt(brief, catalog, parts, site, brief.mode === "revise" ? { content: exported.content } : undefined))
-    setCopied(false)
     setMode(brief.mode === "revise" || !hasContent ? "replace" : "append")
     setStep("prompt")
-  }
-
-  async function copy() {
-    try {
-      await navigator.clipboard.writeText(prompt)
-      setCopied(true)
-    } catch {
-      setProblem("Peramban menolak menyalin otomatis. Pilih teks prompt di bawah, lalu salin manual (Ctrl+C).")
-    }
   }
 
   function check(text: string) {
@@ -199,7 +155,7 @@ export function AiDesigner({
             Desain dengan AI
           </DialogTitle>
           <DialogDescription>Pakai ChatGPT atau Claude milik Anda. Hasilnya masuk sebagai draf: bisa diubah atau diurungkan.</DialogDescription>
-          <StepBar current={step} />
+          <StepBar steps={steps} current={step} />
         </DialogHeader>
 
         <div className="flex-1 overflow-y-auto p-5">
@@ -234,7 +190,7 @@ export function AiDesigner({
                   <Input
                     id="ai-audience"
                     value={brief.audience}
-                    placeholder="Keluarga muda, pekerja kantoran…"
+                    placeholder="Siapa yang paling sering membeli atau memakai jasa Anda"
                     onChange={(event) => set("audience", event.target.value)}
                   />
                 </Field>
@@ -245,7 +201,7 @@ export function AiDesigner({
                   id="ai-offer"
                   rows={2}
                   value={brief.offer}
-                  placeholder="Bakso urat, mie ayam, es teh; buka setiap hari"
+                  placeholder="Produk atau layanan utama, kisaran harga, jam buka"
                   onChange={(event) => set("offer", event.target.value)}
                 />
               </Field>
@@ -317,87 +273,17 @@ export function AiDesigner({
             </FieldGroup>
           ) : null}
 
-          {step === "prompt" ? (
-            <div className="flex flex-col gap-5">
-              <ol className="flex list-decimal flex-col gap-1.5 pl-5 text-sm">
-                <li>Salin prompt di bawah.</li>
-                <li>Buka ChatGPT atau Claude, tempel, lalu kirim. Bila kotak chat menolak karena terlalu panjang, unduh prompt-nya lalu lampirkan berkasnya.</li>
-                <li>
-                  AI diminta membuat berkas <span className="font-mono text-xs">halaman.json</span>: unduh berkasnya, atau salin isi blok kodenya (tombol salin
-                  di pojok blok kode).
-                </li>
-                <li>Bila jawabannya terpotong, ketik &ldquo;lanjutkan&rdquo; di AI, lalu tempel semua bagiannya berurutan di langkah berikut.</li>
-              </ol>
-              <div className="flex flex-wrap gap-2">
-                <Button type="button" onClick={copy}>
-                  {copied ? <CheckIcon data-icon="inline-start" /> : <ClipboardCopyIcon data-icon="inline-start" />}
-                  {copied ? "Prompt tersalin" : "Salin prompt"}
-                </Button>
-                {/* Prompt panjang bisa ditolak kotak chat: unggah sebagai berkas lampiran. */}
-                <a
-                  href={`data:text/plain;charset=utf-8,${encodeURIComponent(prompt)}`}
-                  download="prompt-desain-halaman.txt"
-                  className={cn(buttonVariants({ variant: "outline" }))}
-                >
-                  <DownloadIcon data-icon="inline-start" />
-                  Unduh prompt
-                </a>
-                {chats.map((chat) => (
-                  <a key={chat.href} href={chat.href} target="_blank" rel="noreferrer" className={cn(buttonVariants({ variant: "outline" }))}>
-                    {chat.label}
-                    <ArrowUpRightIcon data-icon="inline-end" />
-                  </a>
-                ))}
-              </div>
-              {problem ? (
-                <Alert variant="warning">
-                  <AlertDescription>{problem}</AlertDescription>
-                </Alert>
-              ) : null}
-              <Field>
-                <FieldLabel htmlFor="ai-prompt">Prompt</FieldLabel>
-                <Textarea id="ai-prompt" readOnly rows={10} value={prompt} className="font-mono text-xs" onFocus={(event) => event.currentTarget.select()} />
-                <FieldDescription>Sekitar {Math.round(prompt.length / 1000)} ribu karakter, termasuk daftar semua blok yang bisa dipakai.</FieldDescription>
-              </Field>
-            </div>
-          ) : null}
+          {step === "prompt" ? <PromptStep prompt={prompt} fileName="halaman.json" note="termasuk daftar semua blok yang bisa dipakai" /> : null}
 
           {step === "paste" ? (
-            <div className="flex flex-col gap-5">
-              <Field>
-                <FieldLabel htmlFor="ai-answer">Jawaban AI</FieldLabel>
-                <Textarea
-                  id="ai-answer"
-                  rows={12}
-                  value={answer}
-                  placeholder='Tempel jawaban AI di sini. Bila terpotong, tempel semua bagiannya berurutan.'
-                  className="font-mono text-xs"
-                  onChange={(event) => setAnswer(event.target.value)}
-                />
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="ai-file">Atau unggah berkas halaman.json dari AI</FieldLabel>
-                <Input
-                  id="ai-file"
-                  type="file"
-                  accept=".json,.txt,application/json,text/plain"
-                  onChange={(event) => {
-                    const file = event.target.files?.[0]
-                    if (!file) return
-                    void file.text().then((text) => {
-                      setAnswer(text)
-                      check(text)
-                    })
-                  }}
-                />
-              </Field>
-              {problem ? (
-                <Alert variant="destructive">
-                  <AlertTitle>Belum bisa dipakai</AlertTitle>
-                  <AlertDescription>{problem}</AlertDescription>
-                </Alert>
-              ) : null}
-            </div>
+            <PasteStep
+              answer={answer}
+              onAnswer={setAnswer}
+              onFile={check}
+              problem={problem}
+              fileName="halaman.json"
+              accept=".json,.txt,application/json,text/plain"
+            />
           ) : null}
 
           {step === "preview" && result ? (

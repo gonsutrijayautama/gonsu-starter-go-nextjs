@@ -5,11 +5,11 @@ import { createContext, use, type CSSProperties, type ReactNode } from "react"
 import type { PuckContext } from "@puckeditor/core"
 import { cn } from "cn"
 
-import { Backdrop, type BackdropKind } from "./effects"
+import { Backdrop, MovingGradient, type BackdropKind, type GradientMotion } from "./effects"
 import { Animate, type MotionType } from "./motion"
 
 // Pengaturan tampilan yang sama untuk setiap bagian halaman: ukuran (lebar,
-// tinggi, jarak), latar (warna, gradien, gambar), pola, id untuk tautan, dan
+// tinggi, jarak), latar (warna, gradien diam atau bergerak, gambar), pola, id untuk tautan, dan
 // di layar mana ia tampil. Datanya `appearance` di props blok; blok lama tanpa
 // `appearance`, atau tanpa sebagian isinya, tampil dengan nilai bawaan.
 
@@ -30,6 +30,8 @@ export type Appearance = {
   /** Warna akhir "gradient". */
   color2: string
   direction: "down" | "right" | "diagonal" | "radial"
+  /** Gerak "gradient": kedua warnanya melayang, berputar, atau mengalir. */
+  gradientMotion: GradientMotion
   /** Warna dan gradien pilihan sendiri digelapkan saat pengunjung memakai mode gelap. */
   adapt: boolean
   image: string | null
@@ -66,6 +68,7 @@ export const defaultAppearance: Appearance = {
   color: "#f4efe6",
   color2: "#dcebfb",
   direction: "diagonal",
+  gradientMotion: "none",
   adapt: true,
   image: null,
   focus: "center",
@@ -171,8 +174,8 @@ function gradientOf(direction: Appearance["direction"], from: string, to: string
   return `linear-gradient(${angle}, ${from}, ${to})`
 }
 
-/** Satu set warna latar: [warna latar, warna teks, gambar latar (gradien)]. */
-type Scheme = { bg: string; fg: string; image?: string }
+/** Satu set warna latar: warna latar, warna teks, gambar latar (gradien), dan kedua warna gradiennya. */
+type Scheme = { bg: string; fg: string; image?: string; from?: string; to?: string }
 
 /**
  * Warna latar dan teks bagian. Latar bawaan cukup kelas token (ikut tema).
@@ -182,7 +185,13 @@ type Scheme = { bg: string; fg: string; image?: string }
  */
 function surfaceOf(look: Appearance): { className?: string; style?: CSSProperties } {
   const plain = (scheme: Scheme): CSSProperties =>
-    ({ "--surface-bg": scheme.bg, "--surface-fg": scheme.fg, ...(scheme.image ? { "--surface-image": scheme.image } : {}) }) as CSSProperties
+    ({
+      "--surface-bg": scheme.bg,
+      "--surface-fg": scheme.fg,
+      ...(scheme.image ? { "--surface-image": scheme.image } : {}),
+      // Kedua warna gradien, untuk lapisan geraknya (`.page-flow`, effects.css).
+      ...(scheme.from && scheme.to ? { "--surface-from": scheme.from, "--surface-to": scheme.to } : {}),
+    }) as CSSProperties
   const adaptive = (day: Scheme, dark: Scheme) => ({
     className: "page-surface-adaptive",
     style: {
@@ -192,6 +201,8 @@ function surfaceOf(look: Appearance): { className?: string; style?: CSSPropertie
       "--surface-night-bg": dark.bg,
       "--surface-night-fg": dark.fg,
       "--surface-night-image": dark.image ?? "none",
+      ...(day.from && day.to ? { "--surface-day-from": day.from, "--surface-day-to": day.to } : {}),
+      ...(dark.from && dark.to ? { "--surface-night-from": dark.from, "--surface-night-to": dark.to } : {}),
     } as CSSProperties,
   })
 
@@ -217,6 +228,8 @@ function surfaceOf(look: Appearance): { className?: string; style?: CSSPropertie
         bg: `color-mix(in oklch, ${look.color} 50%, ${look.color2})`,
         fg: textOn(look.color, look.color2),
         image: gradientOf(look.direction, look.color, look.color2),
+        from: look.color,
+        to: look.color2,
       }
       if (!look.adapt) return { style: plain(day) }
       const [from, to] = [nightOf(look.color), nightOf(look.color2)]
@@ -225,6 +238,8 @@ function surfaceOf(look: Appearance): { className?: string; style?: CSSPropertie
         bg: `color-mix(in oklch, ${from} 50%, ${to})`,
         fg: changed ? lightText : day.fg,
         image: gradientOf(look.direction, from, to),
+        from,
+        to,
       })
     }
     case "image":
@@ -432,6 +447,7 @@ export function Surface({ appearance, puck, children }: { appearance?: Partial<A
           ) : null}
         </div>
       ) : null}
+      {colored && look.background === "gradient" ? <MovingGradient kind={look.gradientMotion} /> : null}
       <Backdrop kind={look.pattern} color={hexColor.test(look.patternColor) ? look.patternColor : undefined} opacity={look.patternOpacity / 100} />
       {puck.isEditing && look.visibility !== "all" ? (
         <span className="absolute top-2 left-2 z-10 rounded-md bg-invert px-2 py-0.5 text-xs text-invert-foreground">

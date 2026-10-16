@@ -10,7 +10,8 @@ import { drawerTabs, pageConfig } from "../config"
 export type Choice = { value: string; label: string }
 
 export type FieldSpec =
-  | { kind: "text"; label: string; long?: boolean }
+  /** `hint`: placeholder isian di editor — memperjelas maksud isian bagi model. */
+  | { kind: "text"; label: string; long?: boolean; hint?: string }
   | { kind: "html"; label: string }
   | { kind: "number"; label: string; min?: number; max?: number }
   | { kind: "enum"; label: string; options: Choice[] }
@@ -72,9 +73,9 @@ function specOf(field: Field): FieldSpec | null {
   const label = field.label ?? ""
   switch (field.type) {
     case "text":
-      return { kind: "text", label }
+      return { kind: "text", label, hint: field.placeholder || undefined }
     case "textarea":
-      return { kind: "text", label, long: true }
+      return { kind: "text", label, long: true, hint: field.placeholder || undefined }
     case "richtext":
       return { kind: "html", label }
     case "number":

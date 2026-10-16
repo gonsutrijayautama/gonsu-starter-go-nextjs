@@ -22,7 +22,8 @@ import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Progress } from "@/components/ui/progress"
 
-import { BlockImage, elementFrame, resolveLink, stackVars, useOverlayPortal, type BlockProps, type SlotBlockProps } from "./blocks"
+import { BlockImage, elementFrame, Hint, orHint, resolveLink, shownItems, stackVars, useOverlayPortal, type BlockProps, type SlotBlockProps } from "./blocks"
+import { MediaPickButton } from "./media-picker"
 import type { Align } from "./elements"
 import { motionSettledEvent } from "./motion"
 import { PageIcon } from "./page-icon"
@@ -111,6 +112,8 @@ export function CarouselBlock({ slides, per_view, ratio, style, controls, autopl
                     className={cn(ratioClass[ratio] ?? "aspect-video", "w-full", style === "card" && "rounded-none border-0")}
                     puck={puck}
                   />
+                  {/* Tombol, bukan area klik: slide digeser dengan menyeret gambarnya. */}
+                  <MediaPickButton puck={puck} field={`slides.${index}.image`} filled={Boolean(slide.image)} className="top-2 right-2" />
                   {style === "image" && (slide.title || slide.caption) ? (
                     <figcaption className="absolute inset-x-0 bottom-0 flex flex-col gap-0.5 rounded-b-xl bg-linear-to-t from-black/70 to-transparent p-4 text-white">
                       {slide.title ? <span className="font-semibold">{slide.title}</span> : null}
@@ -224,7 +227,7 @@ function scrollToSection(event: MouseEvent<HTMLAnchorElement>, id: string) {
   window.scrollTo({ top, behavior: reducedMotion() ? "auto" : "smooth" })
 }
 
-export function ScrollspyBlock({ title, items, style, orientation }: BlockProps<ScrollspyProps>) {
+export function ScrollspyBlock({ title, items, style, orientation, puck }: BlockProps<ScrollspyProps>) {
   // Di kanvas editor (iframe) daftarnya statis: jendela dan dokumennya milik editor.
   const inCanvas = use(InCanvasContext)
   const entries = items
@@ -235,6 +238,15 @@ export function ScrollspyBlock({ title, items, style, orientation }: BlockProps<
     !inCanvas
   )
   const vertical = orientation === "vertical"
+  if (entries.length === 0) {
+    if (!puck.isEditing) return null
+    return (
+      <div className={cn(elementFrame, "flex flex-col gap-3")}>
+        {title ? <p className="text-sm font-semibold">{title}</p> : null}
+        <Hint className="text-sm">Tambahkan tautan ke bagian di halaman ini: teksnya dan alamat jangkar bagiannya.</Hint>
+      </div>
+    )
+  }
   const links = entries.map(({ label, target }) => {
     return (
       <a
@@ -274,7 +286,10 @@ export function ScrollspyBlock({ title, items, style, orientation }: BlockProps<
 
 export type RatingProps = { rating: number; max: number; size: "sm" | "default" | "lg"; show_value: "yes" | "no"; caption: string; color: string; align: Align }
 
-export function RatingBlock({ rating, max, size, show_value, caption, color, align }: BlockProps<RatingProps>) {
+export function RatingBlock({ rating, max, size, show_value, caption, color, align, puck }: BlockProps<RatingProps>) {
+  // Nilai 0 berarti belum diisi: pengunjung tidak melihat bintang kosong.
+  if (rating <= 0 && !puck.isEditing) return null
+  const note = orHint(caption, "Keterangan nilai", puck)
   return (
     <div className={cn(elementFrame, "flex flex-wrap items-center gap-3", justify[align])}>
       <Rating
@@ -286,7 +301,7 @@ export function RatingBlock({ rating, max, size, show_value, caption, color, ali
         className={hex.test(color ?? "") ? "**:data-[slot=rating-star-filled]:fill-(--star) **:data-[slot=rating-star-filled]:text-(--star)" : undefined}
         style={hex.test(color ?? "") ? ({ "--star": color } as CSSProperties) : undefined}
       />
-      {caption ? <span className="text-sm text-muted-foreground">{caption}</span> : null}
+      {note ? <span className="text-sm text-muted-foreground">{note}</span> : null}
     </div>
   )
 }
@@ -303,7 +318,7 @@ export type ProgressProps = {
 
 const trackClass = { thin: "**:data-[slot=progress-track]:h-1", medium: "**:data-[slot=progress-track]:h-2", thick: "**:data-[slot=progress-track]:h-3.5" }
 
-export function ProgressBlock({ items, size, show_value, color, animate }: BlockProps<ProgressProps>) {
+export function ProgressBlock({ items, size, show_value, color, animate, puck }: BlockProps<ProgressProps>) {
   const ref = useRef<HTMLDivElement>(null)
   const [seen, setSeen] = useState(false)
   useEffect(() => {
@@ -317,9 +332,11 @@ export function ProgressBlock({ items, size, show_value, color, animate }: Block
     observer.observe(element)
     return () => observer.disconnect()
   }, [animate])
+  const shown = shownItems(items, (item) => item.label.trim() !== "", puck)
+  if (shown.length === 0) return null
   return (
     <div ref={ref} className={cn(elementFrame, "flex flex-col gap-4")} style={hex.test(color ?? "") ? ({ "--bar": color } as CSSProperties) : undefined}>
-      {items.map((item, index) => {
+      {shown.map((item, index) => {
         const value = Math.min(Math.max(item.value, 0), 100)
         return (
           <Progress
@@ -333,7 +350,7 @@ export function ProgressBlock({ items, size, show_value, color, animate }: Block
               hex.test(color ?? "") && "**:data-[slot=progress-indicator]:bg-(--bar)"
             )}
           >
-            <span className="text-sm font-medium">{item.label}</span>
+            <span className="text-sm font-medium">{orHint(item.label, "Label", puck)}</span>
             {show_value === "yes" ? <span className="ml-auto text-sm text-muted-foreground tabular-nums">{value}%</span> : null}
           </Progress>
         )
@@ -458,9 +475,16 @@ function cellsOf(text: string): string[] {
  * Tabel isi halaman. Disusun dengan grid berperan tabel (role="table"), sama
  * terbacanya bagi pembaca layar, dengan gaya tabel shadcn.
  */
-export function TableBlock({ header, rows, variant, first_column }: BlockProps<TableProps>) {
+export function TableBlock({ header, rows, variant, first_column, puck }: BlockProps<TableProps>) {
   const head = cellsOf(header).filter(Boolean)
-  const body = rows.map((row) => cellsOf(row.cells))
+  const body = rows.map((row) => cellsOf(row.cells)).filter((cells) => cells.some(Boolean))
+  if (head.length === 0 && body.length === 0) {
+    return puck.isEditing ? (
+      <div className={elementFrame}>
+        <Hint className="text-sm">Isi kepala dan baris tabel di panel isian; pisahkan sel dengan tanda |.</Hint>
+      </div>
+    ) : null
+  }
   const columns = Math.max(head.length, ...body.map((cells) => cells.length), 1)
   const grid = { gridTemplateColumns: `repeat(${columns}, minmax(8rem, 1fr))` }
   const cell = (text: string, column: number, header = false) => (
@@ -512,17 +536,19 @@ export type TimelineProps = {
   marker: "dot" | "icon"
 }
 
-export function TimelineBlock({ items, orientation, progress, marker }: BlockProps<TimelineProps>) {
-  const done = progress > 0 ? progress : items.length
+export function TimelineBlock({ items, orientation, progress, marker, puck }: BlockProps<TimelineProps>) {
+  const shown = shownItems(items, (item) => item.title.trim() !== "", puck)
+  if (shown.length === 0) return null
+  const done = progress > 0 ? progress : shown.length
   return (
     <div className={elementFrame}>
       <Timeline defaultValue={done} orientation={orientation} key={`${done}-${orientation}`}>
-        {items.map((item, index) => (
+        {shown.map((item, index) => (
           <TimelineItem key={index} step={index + 1}>
             <TimelineHeader>
               <TimelineSeparator />
-              {item.date ? <TimelineDate>{item.date}</TimelineDate> : null}
-              <TimelineTitle>{item.title}</TimelineTitle>
+              {item.date || puck.isEditing ? <TimelineDate>{orHint(item.date, "Tanggal atau tahun", puck)}</TimelineDate> : null}
+              <TimelineTitle>{orHint(item.title, "Judul peristiwa", puck)}</TimelineTitle>
               <TimelineIndicator
                 className={cn(
                   marker === "icon" &&

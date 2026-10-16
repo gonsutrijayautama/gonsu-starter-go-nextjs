@@ -201,6 +201,10 @@ yang dibacanya.
 | `APP_TRUSTED_PROXIES` | operator | alamat reverse proxy yang boleh menulis `X-Forwarded-For`; kosong berarti diabaikan |
 | `STORAGE_ENDPOINT`, `STORAGE_REGION`, `STORAGE_BUCKET`, `STORAGE_ACCESS_KEY_ID`, `STORAGE_SECRET_ACCESS_KEY` | GONSU (cloud); pelanggan (self-host) | bucket penyimpanan berkas pemasangan ini, lewat API S3. Kelimanya ada, atau tidak satu pun — tidak satu pun berarti berkas disimpan di database |
 | `APP_STORAGE_PATH_STYLE` | operator | `true` untuk layanan S3 beralamat `https://host/bucket/key`; hanya untuk penyimpanan milik sendiri |
+| `APP_PIXABAY_API_KEY` | operator | kunci API Pixabay untuk foto dan video bebas pakai di penyusun halaman; kosong berarti fiturnya mati |
+| `APP_AI_API_KEY` | operator | **percobaan** — kunci penyedia model AI untuk asisten di penyusun halaman. Kosong berarti asistennya memakai simulasi. Permintaan pengguna, isi halaman, dan profil usaha dikirim ke penyedia itu |
+| `APP_AI_BASE_URL` | operator | alamat API chat completions ala OpenAI; kosong berarti Vercel AI Gateway (`https://ai-gateway.vercel.sh/v1`) |
+| `APP_AI_MODEL` | operator | model yang menjawab; kosong berarti `google/gemini-2.5-flash-lite` |
 | `APP_DEV_ORGANIZATION_ID` | pengembang | hanya build `dev`: organization lokal |
 | `DEV_HTTP_ADDR` | `make run` | hanya build `dev`: alamat dengar; build rilis selalu `:8080` |
 

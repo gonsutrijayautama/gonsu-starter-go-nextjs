@@ -116,8 +116,9 @@ import {
 import { Animate, defaultMotion, type MotionSettings } from "./motion"
 import { motionField } from "./motion-input"
 import { migrateStat } from "./stat-number"
-import { alignField, animateField, buttonEffectField, cardEffectOptions, decimalsField, imageField, linkField, numberFormatField } from "./fields"
+import { alignField, animateField, buttonEffectField, cardEffectOptions, decimalsField, imageField, inline, inlineRichText, linkField, numberFormatField, videoField } from "./fields"
 import { PageTitleBlock, type PageTitleProps } from "./library/page-title"
+import { customSectionConfig, type CustomSectionProps } from "./custom-section"
 
 // Konfigurasi Puck: blok apa saja yang ada, isiannya, dan nilai awalnya.
 // Nama blok (type di data) berbahasa Inggris dan menjadi kontrak data: server
@@ -128,6 +129,7 @@ import { PageTitleBlock, type PageTitleProps } from "./library/page-title"
 
 type Blocks = {
   Hero: HeroProps
+  CustomSection: CustomSectionProps
   Text: TextProps
   ImageText: ImageTextProps
   Services: ServicesProps
@@ -253,6 +255,8 @@ export const pageConfig: Config<Blocks> = {
   },
   components: {
     Hero: heroConfig,
+    // Di luar semua kategori: hanya dibuat lewat impor Desain khusus, jadi tidak tampil di laci blok maupun di katalog blok untuk AI.
+    CustomSection: customSectionConfig,
     Text: textConfig,
     ImageText: imageTextConfig,
     Services: servicesConfig,
@@ -373,8 +377,8 @@ export const pageConfig: Config<Blocks> = {
           ],
         },
         eyebrow: { type: "text", label: "Label kecil", placeholder: "Kosongkan bila tidak perlu" },
-        title: { type: "textarea", label: "Judul" },
-        subtitle: { type: "textarea", label: "Kalimat di bawahnya" },
+        title: inline({ type: "text", label: "Judul" } as const),
+        subtitle: inline({ type: "textarea", label: "Kalimat di bawahnya" } as const),
         size: {
           type: "radio",
           label: "Ukuran judul",
@@ -395,7 +399,7 @@ export const pageConfig: Config<Blocks> = {
         breadcrumb: "yes",
         eyebrow: "",
         title: "Judul halaman",
-        subtitle: "Satu-dua kalimat yang menjelaskan isi halaman ini.",
+        subtitle: "",
         size: "md",
         image: null,
         primary_label: "",
@@ -417,7 +421,7 @@ export const pageConfig: Config<Blocks> = {
           arrayFields: {
             image: imageField("Gambar"),
             title: { type: "text", label: "Judul" },
-            caption: { type: "textarea", label: "Keterangan" },
+            caption: { type: "textarea", label: "Keterangan slide" },
             link: { ...linkField, label: "Tautan (boleh kosong)" },
           },
         },
@@ -500,7 +504,7 @@ export const pageConfig: Config<Blocks> = {
           ],
         },
         title: { type: "text", label: "Judul dialog" },
-        description: { type: "textarea", label: "Keterangan" },
+        description: { type: "textarea", label: "Kalimat di bawah judul" },
         size: {
           type: "radio",
           label: "Lebar dialog",
@@ -561,11 +565,7 @@ export const pageConfig: Config<Blocks> = {
         title: "Di halaman ini",
         style: "line",
         orientation: "vertical",
-        items: [
-          { label: "Layanan", target: "layanan" },
-          { label: "Harga", target: "harga" },
-          { label: "Kontak", target: "kontak" },
-        ],
+        items: [],
       },
       render: (props) => <ScrollspyBlock {...props} />,
     },
@@ -601,14 +601,10 @@ export const pageConfig: Config<Blocks> = {
         },
       },
       defaultProps: {
-        header: "Paket | Harga | Isi",
+        header: "",
         variant: "card",
         first_column: "bold",
-        rows: [
-          { cells: "Dasar | Rp150.000 | Satu layanan" },
-          { cells: "Usaha | Rp350.000 | Semua layanan, dukungan prioritas" },
-          { cells: "Lengkap | Hubungi kami | Sesuai kebutuhan" },
-        ],
+        rows: [{ cells: "" }, { cells: "" }, { cells: "" }],
       },
       render: (props) => <TableBlock {...props} />,
     },
@@ -620,7 +616,7 @@ export const pageConfig: Config<Blocks> = {
           label: "Batang",
           max: 12,
           getItemSummary: (item) => `${item.label || "Tanpa nama"} · ${item.value}%`,
-          defaultItemProps: { label: "Keahlian", value: 80 },
+          defaultItemProps: { label: "", value: 0 },
           arrayFields: { label: { type: "text", label: "Nama" }, value: { type: "number", label: "Nilai (0–100)", min: 0, max: 100 } },
         },
         size: {
@@ -656,9 +652,9 @@ export const pageConfig: Config<Blocks> = {
         color: "",
         animate: "yes",
         items: [
-          { label: "Kepuasan pelanggan", value: 98 },
-          { label: "Tepat waktu", value: 95 },
-          { label: "Pesanan berulang", value: 72 },
+          { label: "", value: 0 },
+          { label: "", value: 0 },
+          { label: "", value: 0 },
         ],
       },
       render: (props) => <ProgressBlock {...props} />,
@@ -685,11 +681,11 @@ export const pageConfig: Config<Blocks> = {
             { label: "Tidak", value: "no" },
           ],
         },
-        caption: { type: "text", label: "Keterangan", placeholder: "Misalnya: dari 120 ulasan" },
+        caption: { type: "text", label: "Keterangan di samping bintang", placeholder: "Misalnya: dari ulasan pelanggan" },
         color: colorField("Warna bintang", "Otomatis: kuning."),
         align: alignField,
       },
-      defaultProps: { rating: 4.8, max: 5, size: "default", show_value: "yes", caption: "dari 120 ulasan", color: "", align: "left" },
+      defaultProps: { rating: 0, max: 5, size: "default", show_value: "yes", caption: "", color: "", align: "left" },
       render: (props) => <RatingBlock {...props} />,
     },
     Timeline: {
@@ -700,11 +696,11 @@ export const pageConfig: Config<Blocks> = {
           label: "Peristiwa",
           max: 20,
           getItemSummary: (item) => item.title || "Peristiwa",
-          defaultItemProps: { date: "", title: "Peristiwa", description: "", icon: "" },
+          defaultItemProps: { date: "", title: "", description: "", icon: "" },
           arrayFields: {
             date: { type: "text", label: "Tanggal atau tahun" },
             title: { type: "text", label: "Judul" },
-            description: { type: "textarea", label: "Keterangan" },
+            description: { type: "textarea", label: "Penjelasan" },
             icon: iconField("Ikon (untuk penanda ikon)"),
           },
         },
@@ -731,9 +727,9 @@ export const pageConfig: Config<Blocks> = {
         marker: "dot",
         progress: 0,
         items: [
-          { date: "2018", title: "Usaha dimulai", description: "Berawal dari garasi rumah.", icon: "house" },
-          { date: "2021", title: "Toko pertama", description: "Buka toko di pusat kota.", icon: "store" },
-          { date: "2024", title: "1.000 pelanggan", description: "Terima kasih atas kepercayaannya.", icon: "users" },
+          { date: "", title: "", description: "", icon: "flag" },
+          { date: "", title: "", description: "", icon: "store" },
+          { date: "", title: "", description: "", icon: "users" },
         ],
       },
       render: (props) => <TimelineBlock {...props} />,
@@ -797,22 +793,7 @@ export const pageConfig: Config<Blocks> = {
       fields: {
         content: { type: "slot", label: "Isi", allow: inSection },
       },
-      defaultProps: {
-        content: [
-          { type: "Heading", props: { text: "Judul bagian", level: "h2", font_size: 0, weight: "default", color: "", align: "left" } },
-          {
-            type: "Paragraph",
-            props: {
-              text: "<p>Tulis isinya di sini, lalu seret elemen lain ke dalam bagian ini.</p>",
-              size: "large",
-              tone: "muted",
-              font_size: 0,
-              color: "",
-              align: "left",
-            },
-          },
-        ],
-      },
+      defaultProps: { content: [] },
       render: (props) => <SectionBlock {...props} />,
     },
     Row: {
@@ -905,15 +886,9 @@ export const pageConfig: Config<Blocks> = {
         mobile: "1",
         gap: "small",
         items: [
-          {
-            type: "Stat",
-            props: { value: "10+", label: "Tahun melayani", align: "left", count: "yes", format: "plain", decimals: 0, font_size: 0, color: "" },
-          },
-          { type: "Stat", props: { value: "500+", label: "Pelanggan", align: "left", count: "yes", format: "plain", decimals: 0, font_size: 0, color: "" } },
-          {
-            type: "Stat",
-            props: { value: "24 jam", label: "Waktu tanggap", align: "left", count: "yes", format: "plain", decimals: 0, font_size: 0, color: "" },
-          },
+          { type: "Stat", props: { number: 0, prefix: "", suffix: "", label: "", align: "left", count: "yes", format: "plain", decimals: 0, font_size: 0, color: "" } },
+          { type: "Stat", props: { number: 0, prefix: "", suffix: "", label: "", align: "left", count: "yes", format: "plain", decimals: 0, font_size: 0, color: "" } },
+          { type: "Stat", props: { number: 0, prefix: "", suffix: "", label: "", align: "left", count: "yes", format: "plain", decimals: 0, font_size: 0, color: "" } },
         ],
       },
       render: (props) => <GridBlock {...props} />,
@@ -921,8 +896,8 @@ export const pageConfig: Config<Blocks> = {
     Card: {
       label: "Kartu",
       fields: {
-        title: { type: "text", label: "Judul" },
-        description: { type: "text", label: "Keterangan" },
+        title: inline({ type: "text", label: "Judul" } as const),
+        description: inline({ type: "text", label: "Kalimat di bawah judul" } as const),
         style: {
           type: "radio",
           label: "Gaya",
@@ -948,10 +923,10 @@ export const pageConfig: Config<Blocks> = {
     Heading: {
       label: "Judul",
       fields: {
-        text: { type: "textarea", label: "Teks" },
+        text: inline({ type: "text", label: "Teks" } as const),
         level: {
           type: "select",
-          label: "Ukuran",
+          label: "Tingkat judul",
           options: [
             { label: "Sangat besar (judul halaman)", value: "h1" },
             { label: "Besar (judul bagian)", value: "h2" },
@@ -980,7 +955,7 @@ export const pageConfig: Config<Blocks> = {
     Paragraph: {
       label: "Paragraf",
       fields: {
-        text: { type: "richtext", label: "Teks" },
+        text: inlineRichText("Teks"),
         size: {
           type: "radio",
           label: "Ukuran",
@@ -1008,7 +983,7 @@ export const pageConfig: Config<Blocks> = {
     Button: {
       label: "Tombol",
       fields: {
-        label: { type: "text", label: "Teks tombol" },
+        label: inline({ type: "text", label: "Teks tombol" } as const),
         link: linkField,
         variant: {
           type: "select",
@@ -1266,10 +1241,10 @@ export const pageConfig: Config<Blocks> = {
             { label: "Penting", value: "destructive" },
           ],
         },
-        title: { type: "text", label: "Judul" },
-        description: { type: "textarea", label: "Isi" },
+        title: inline({ type: "text", label: "Judul" } as const),
+        description: inline({ type: "textarea", label: "Isi" } as const),
       },
-      defaultProps: { variant: "info", title: "Libur nasional", description: "Kami tutup pada tanggal merah dan buka kembali keesokan harinya." },
+      defaultProps: { variant: "info", title: "", description: "" },
       render: (props) => <AlertBlock {...props} />,
     },
     Accordion: {
@@ -1359,7 +1334,7 @@ export const pageConfig: Config<Blocks> = {
           min: 1,
           max: 8,
           getItemSummary: (item) => item.label || "Tab tanpa nama",
-          defaultItemProps: { label: "Tab baru", icon: "", content: "Isi tab.", body: [] },
+          defaultItemProps: { label: "", icon: "", content: "", body: [] },
           arrayFields: {
             label: { type: "text", label: "Nama tab" },
             icon: iconField("Ikon (boleh kosong)"),
@@ -1373,8 +1348,8 @@ export const pageConfig: Config<Blocks> = {
         align: "left",
         active: 1,
         items: [
-          { label: "Pagi", icon: "sun", content: "Buka pukul 08.00–12.00.", body: [] },
-          { label: "Sore", icon: "moon", content: "Buka pukul 13.00–17.00.", body: [] },
+          { label: "", icon: "", content: "", body: [] },
+          { label: "", icon: "", content: "", body: [] },
         ],
       },
       render: (props) => <TabsBlock {...(props as unknown as ComponentProps<typeof TabsBlock>)} />,
@@ -1382,9 +1357,9 @@ export const pageConfig: Config<Blocks> = {
     Quote: {
       label: "Kutipan",
       fields: {
-        quote: { type: "textarea", label: "Kutipan" },
-        name: { type: "text", label: "Nama" },
-        role: { type: "text", label: "Keterangan" },
+        quote: inline({ type: "textarea", label: "Kutipan" } as const),
+        name: inline({ type: "text", label: "Nama" } as const),
+        role: inline({ type: "text", label: "Peran atau asal orangnya" } as const),
       },
       defaultProps: { quote: "Kalimat yang ingin ditonjolkan.", name: "", role: "" },
       render: (props) => <QuoteBlock {...props} />,
@@ -1405,7 +1380,7 @@ export const pageConfig: Config<Blocks> = {
         number: { type: "number", label: "Angka" },
         prefix: { type: "text", label: "Awalan", placeholder: "Misalnya: ±" },
         suffix: { type: "text", label: "Akhiran", placeholder: "Misalnya: +, jam, pelanggan" },
-        label: { type: "text", label: "Keterangan" },
+        label: inline({ type: "text", label: "Label angka" } as const),
         format: numberFormatField,
         decimals: decimalsField,
         count: animateField,
@@ -1414,10 +1389,10 @@ export const pageConfig: Config<Blocks> = {
         align: alignField,
       },
       defaultProps: {
-        number: 500,
+        number: 0,
         prefix: "",
-        suffix: "+",
-        label: "Pelanggan",
+        suffix: "",
+        label: "",
         format: "plain",
         decimals: 0,
         count: "yes",
@@ -1434,7 +1409,7 @@ export const pageConfig: Config<Blocks> = {
     Video: {
       label: "Video",
       fields: {
-        url: { type: "text", label: "Tautan YouTube", placeholder: "https://www.youtube.com/watch?v=…" },
+        url: videoField("Video"),
         title: { type: "text", label: "Judul video (untuk pembaca layar)" },
         style: {
           type: "radio",
@@ -1455,7 +1430,7 @@ export const pageConfig: Config<Blocks> = {
         },
       },
       defaultProps: { url: "", title: "", style: "dialog", thumbnail: null, frame: "none" },
-      render: (props) => <VideoBlock {...props} />,
+      render: (props) => <VideoBlock {...props} field="url" />,
     },
     AvatarStack: {
       label: "Tumpukan avatar",
@@ -1465,7 +1440,7 @@ export const pageConfig: Config<Blocks> = {
           label: "Orang",
           max: 8,
           getItemSummary: (item) => item.name || "Tanpa nama",
-          defaultItemProps: { name: "Nama", image: null },
+          defaultItemProps: { name: "", image: null },
           arrayFields: { name: { type: "text", label: "Nama" }, image: imageField("Foto") },
         },
         more: { type: "text", label: "Lingkaran terakhir", placeholder: "Misalnya: +99" },
@@ -1482,9 +1457,9 @@ export const pageConfig: Config<Blocks> = {
       },
       defaultProps: {
         avatar_style: "notionists",
-        people: ["Sari Wulandari", "Budi Santoso", "Rina Wati", "Agus Pratama"].map((name) => ({ name, image: null })),
-        more: "+500",
-        caption: "Dipercaya lebih dari 500 pelanggan",
+        people: Array.from({ length: 4 }, () => ({ name: "", image: null })),
+        more: "",
+        caption: "",
         align: "left",
       },
       render: (props) => <AvatarStackBlock {...props} />,
@@ -1543,11 +1518,11 @@ export const pageConfig: Config<Blocks> = {
           label: "Notifikasi",
           max: 20,
           getItemSummary: (item) => item.title || "Notifikasi kosong",
-          defaultItemProps: { icon: "package", title: "Pesanan baru", description: "", time: "baru saja" },
+          defaultItemProps: { icon: "package", title: "", description: "", time: "" },
           arrayFields: {
             icon: iconField("Ikon"),
             title: { type: "text", label: "Judul" },
-            description: { type: "text", label: "Keterangan" },
+            description: { type: "text", label: "Isi kabar" },
             time: { type: "text", label: "Waktu", placeholder: "Misalnya: 2 menit lalu" },
           },
         },
@@ -1564,11 +1539,10 @@ export const pageConfig: Config<Blocks> = {
       defaultProps: {
         visible: "4",
         items: [
-          { icon: "package", title: "Pesanan baru", description: "Sari dari Bandung memesan 2 paket.", time: "baru saja" },
-          { icon: "star", title: "Ulasan bintang 5", description: "“Cepat dan rapi, pasti pesan lagi.”", time: "3 menit lalu" },
-          { icon: "truck", title: "Pesanan dikirim", description: "Pesanan Budi sedang dalam perjalanan.", time: "10 menit lalu" },
-          { icon: "users", title: "Pelanggan baru", description: "Rina bergabung hari ini.", time: "15 menit lalu" },
-          { icon: "wallet", title: "Pembayaran diterima", description: "Terima kasih, Agus!", time: "20 menit lalu" },
+          { icon: "package", title: "", description: "", time: "" },
+          { icon: "sparkles", title: "", description: "", time: "" },
+          { icon: "clock", title: "", description: "", time: "" },
+          { icon: "star", title: "", description: "", time: "" },
         ],
       },
       render: (props) => <AnimatedListBlock {...props} />,
@@ -1626,8 +1600,8 @@ export const pageConfig: Config<Blocks> = {
       label: "Poin unggulan",
       fields: {
         icon: iconField("Ikon"),
-        title: { type: "text", label: "Judul" },
-        description: { type: "textarea", label: "Keterangan" },
+        title: inline({ type: "text", label: "Judul" } as const),
+        description: inline({ type: "textarea", label: "Penjelasan" } as const),
         style: {
           type: "radio",
           label: "Gaya",

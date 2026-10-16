@@ -133,6 +133,7 @@ const blockIcons: Record<BlockName, LucideIcon> = {
   Timeline: MilestoneIcon,
   Code: BracesIcon,
   IconStack: SquareStackIcon,
+  CustomSection: BracesIcon,
 }
 
 function labelOf(name: BlockName): string {
