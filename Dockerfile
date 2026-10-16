@@ -31,7 +31,7 @@ ENV NEXT_TELEMETRY_DISABLED=1
 RUN bun --bun run build && test -f out/index.html
 
 # --- 2. Binary ---------------------------------------------------------------
-FROM golang:1.27.1-alpine@sha256:cf6fca6641884b8433441b2b0652976f975e1d0fdd26d177eaaf8596087f3125 AS api
+FROM golang:1.27.2-alpine@sha256:f92b6ef800e499660581efdabdf25d9d817a9d124eaf900924f0504e7e27e12d AS api
 WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
